@@ -17,7 +17,7 @@ const httpServer = http.createServer(expressApp); // our node http server (wrapp
 // configure websocket initiation through our httpServer (socket.io)
 initializeSockets(httpServer);
 
-// launch our http server via a simple express app (embelished with socket.io)
+// launch our http server via a simple express app (embellished with socket.io)
 const PORT = process.env.PORT || 5000; // use either production port -or- 5000 for dev env
 httpServer.listen(PORT, () => {
   log.f(`Express HTTP Server listening on Port ${PORT}`);
