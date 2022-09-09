@@ -1,0 +1,23 @@
+{
+  "name": "dmrst",
+  "version": "0.1.0",
+  "description": "deployable-monorepo-socket-test",
+  "REM": "This root package.json should have NO production dependencies - it is for npm scripts only",
+  "keywords": [
+    "proof-of-concept",
+    "websockets",
+    "socket-io",
+    "monorepo",
+    "heroku-deployment"
+  ],
+  "author": "Kevin J. Bridges <kevin@wiiBridges.com> (https://github.com/KevinAst)",
+  "license": "MIT",
+  "scripts": {
+    "test:unix": "ls -laF",
+    "heroku:build:REM": "do a production build of our client UI and stage it to the server pkg, ready to test/deploy",
+    "heroku:build": "cd pkgs/client && npm run app:prodBuild && cd public && cp -r * ../../server/public/ide",
+    "heroku:test:REM": "?? run the heroku server locally (from the heroku:build)",
+    "heroku:deploy:REM": "?? deploy our server (and its staged client) TO heroku FROM our git repo ... MUST check in changes first",
+    "heroku:logs:REM": "?? tail our remote heroku server app logs"
+  }
+}
