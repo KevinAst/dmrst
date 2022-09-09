@@ -1,0 +1,31 @@
+{
+  "name": "dmrst-server",
+  "version": "0.1.0",
+  "description": "The server implementation of dmrst: deployable-monorepo-socket-test",
+  "mainREM": "The main entry defines the default node startup script",
+  "main": "src/main.js",
+  "keywords": [
+    "proof-of-concept",
+    "websockets",
+    "socket-io",
+    "monorepo",
+    "heroku-deployment"
+  ],
+  "author": "Kevin J. Bridges <kevin@wiiBridges.com> (https://github.com/KevinAst)",
+  "license": "MIT",
+  "typeREM": "module: directs node to use ES Modules (import) ... required to share code between client-server",
+  "type": "module",
+  "scripts": {
+    "REM": "?? update scripts needed for heroku, etc.",
+    "testESModulesSymLinks": "nodemon --experimental-specifier-resolution=node src/testESModulesSymLinks.js",
+    "app:devServe": "nodemon --experimental-specifier-resolution=node src/main.js"
+  },
+  "dependencies": {
+    "debug": "^4.3.3",
+    "express": "^4.17.2",
+    "socket.io": "^4.4.1"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.15"
+  }
+}

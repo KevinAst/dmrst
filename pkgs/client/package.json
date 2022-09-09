@@ -1,0 +1,32 @@
+{
+  "name": "dmrst-client",
+  "version": "0.1.0",
+  "description": "The client implementation of dmrst: deployable-monorepo-socket-test",
+  "keywords": [
+    "proof-of-concept",
+    "websockets",
+    "socket-io",
+    "monorepo",
+    "heroku-deployment"
+  ],
+  "author": "Kevin J. Bridges <kevin@wiiBridges.com> (https://github.com/KevinAst)",
+  "license": "MIT",
+  "scripts": {
+    "app:prodBuild": "rollup -c",
+    "app:devServe": "rollup -c -w",
+    "start": "sirv public --no-clear"
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^17.0.0",
+    "@rollup/plugin-node-resolve": "^11.0.0",
+    "debug": "^4.3.3",
+    "rollup": "^2.3.4",
+    "rollup-plugin-css-only": "^3.1.0",
+    "rollup-plugin-livereload": "^2.0.0",
+    "rollup-plugin-svelte": "^7.0.0",
+    "rollup-plugin-terser": "^7.0.0",
+    "sirv-cli": "^2.0.0",
+    "socket.io-client": "^4.4.1",
+    "svelte": "^3.0.0"
+  }
+}
