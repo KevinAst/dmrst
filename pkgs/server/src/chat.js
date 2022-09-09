@@ -69,7 +69,7 @@ export default function registerChatHandlers(socket) {
   // handle chat disconnect request
   // ... communicating to the other party that our chat has been disconnected
   socket.on('private-msg-disconnect', (toSocketId, fromSocketId) => {
-    log(`invorm other party (${toSocketId}) that our chat has been disconnected`);
+    log(`inform other party (${toSocketId}) that our chat has been disconnected`);
     socket.server.to(toSocketId).emit('private-msg-disconnect', fromSocketId);
   });
 }
