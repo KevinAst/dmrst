@@ -15,12 +15,16 @@ export function initializeSockets(httpServer) {
   // establish our socket.io server
   // NOTE: this an integral part of our httpServer
   //       - it establishes a 'socket.io' route on the httpServer to handles the initial socket connection
-  //         ex: http://{myweburl}/socket.io/bla-bla-bla
-  //       - more
+  //         ex: http://{myUrl}/socket.io/bla-bla-bla
   const ioServer = new SocketIO(httpServer, {
-    cors: { // handle cors in development
-      origin: ['http://localhost:8080', 'http://127.0.0.1:8887'], // AI: very temp for now SUPPORTING DEVELOPMENT ... need to glean more info on cors
-  //? methods: ['GET', 'POST'],
+    // configure cors for our development servers
+    // IN PRODUCTION:  our client socket requests are coming from the same domain
+    //                 ... the localhost urls are NOT used (irrelevant: because the localhost is that of the host server) 
+    // IN DEVELOPMENT: our client and server are on different domains (localhost ports are different)
+    //                 ... the localhost ports below are what is being used by our client SPA
+    cors: {
+      origin: ['http://localhost:8080', 'http://127.0.0.1:8887'],
+  //? methods: ['GET', 'POST'], TODO: review more options
   //? allowedHeaders: ['my-custom-header'],
   //? credentials: true,
     },

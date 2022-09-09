@@ -11,8 +11,16 @@ import http                from 'http';
 import express             from 'express';
 import {initializeSockets} from './sockets.js'
 
-const expressApp = express(); // our express app
-const httpServer = http.createServer(expressApp); // our node http server (wrapped with an express app)
+// define our express app
+const expressApp = express();
+
+// configure our static resources to be served
+// ... found in our public directory
+// ... also stages our SPA built scripts (public/ide, public/sys)
+expressApp.use(express.static('public')); // AI: investigate 2nd param: options
+
+// define our node http server (wrapped with our express app)
+const httpServer = http.createServer(expressApp);
 
 // configure websocket initiation through our httpServer (socket.io)
 initializeSockets(httpServer);
