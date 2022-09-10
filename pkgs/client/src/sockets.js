@@ -17,7 +17,7 @@ const  log = logger('vit:client:sockets');
 // make our socket connection for this app/browser-window
 // ... dynamically updates this socket obj when connected
 log('client making socket connection to server');
-const serverURL = "http://localhost:5000";
+const serverURL = "https://dmrst.herokuapp.com/"; // ?? FIGURE THIS CONFIG OUT ... for dev it is http://localhost:5000
 const socket    = socketIOClient(serverURL);
 
 // NOTE: to determine if connection is made or NOT, simply monitor 'connect'
