@@ -15,8 +15,14 @@
   "license": "MIT",
   "typeREM": "module: directs node to use ES Modules (import) ... required to share code between client-server",
   "type": "module",
+  "enginesREM": "engines entry used by heroku, and matches this dev env",
+  "engines": {
+    "node": "16.x"
+  },
   "scripts": {
-    "REM": "?? update scripts needed for heroku, etc.",
+    "REM": "the --experimental-specifier-resolution=node flag supports the omission of .js and recognition of intex.js etc.",
+    "startREM": "the start script is used by heroku to run our app",
+    "start": "node --experimental-specifier-resolution=node src/main.js",
     "testESModulesSymLinks": "nodemon --experimental-specifier-resolution=node src/testESModulesSymLinks.js",
     "app:devServe": "nodemon --experimental-specifier-resolution=node src/main.js"
   },

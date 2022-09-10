@@ -25,8 +25,10 @@ const httpServer = http.createServer(expressApp);
 // configure websocket initiation through our httpServer (socket.io)
 initializeSockets(httpServer);
 
-// launch our http server via a simple express app (embellished with socket.io)
-const PORT = process.env.PORT || 5000; // use either production port -or- 5000 for dev env
+// launch our http server via a simple express app (embellished with socket.io - above)
+// ... use either production port -or- 5000 for dev env
+//     NOTE: heroku deployment auto sets this PORT env variable
+const PORT = process.env.PORT || 5000;
 httpServer.listen(PORT, () => {
   log.f(`Express HTTP Server listening on Port ${PORT}`);
 });
