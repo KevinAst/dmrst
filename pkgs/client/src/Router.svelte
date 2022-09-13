@@ -61,7 +61,7 @@
 <div>
   <!-- our crude header -->
   <b><i use:longpress={2000} on:longpress={handleEasterEgg}>visualize-it</i></b>
-
+  <i>(ver 0.1)</i>
   &nbsp;&nbsp;&nbsp;
   &nbsp;&nbsp;&nbsp;
   &nbsp;&nbsp;&nbsp;

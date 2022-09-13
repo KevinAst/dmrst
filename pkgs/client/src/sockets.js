@@ -8,15 +8,12 @@ import {registerChatSocketHandlers}          from './chat';
 import {registerSystemStoreSocketHandlers}   from './system';
 import {registerSystemSocketHandlers}        from './systemIO';
 import {registerLogFilterSocketHandlers}     from './core/util/logger/filterLogsIOClient';
+import {isDev}                               from './util/env';
 import user                                  from './user';
 import alert                                 from './alert';
 
 import logger from './core/util/logger';
 const  log = logger('vit:client:sockets');
-
-// ?? pull in from a util
-const isDev = window?.location?.hostname === 'localhost';
-const isProd = !isDev;
 
 // make our socket connection for this app/browser-window
 // ... serverURL:
