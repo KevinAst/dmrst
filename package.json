@@ -2,7 +2,7 @@
   "name": "dmrst",
   "version": "0.1.0",
   "description": "deployable-monorepo-socket-test",
-  "REM": "This root package.json should have NO production dependencies - it is for npm scripts only",
+  "REM": "This root package.json is currently used to house npm scripts - it should NOT contain any production dependencies",
   "keywords": [
     "proof-of-concept",
     "websockets",
@@ -13,11 +13,30 @@
   "author": "Kevin J. Bridges <kevin@wiiBridges.com> (https://github.com/KevinAst)",
   "license": "MIT",
   "scripts": {
-    "test:unix": "ls -laF",
-    "heroku:build:REM": "do a production build of our client UI and stage it to the server pkg, ready to test/deploy",
+    "REM": "these scripts are NOT platform neutral - currently running on Windows + cygwin",
+
+    "heroku:build:REM": "a prod build of heroku server (staging prod client UI in server pkg), ready to test/check-in/deploy",
     "heroku:build": "cd pkgs/client && npm run app:prodBuild && cd public && cp -r * ../../server/public/ide",
-    "heroku:test:REM": "?? run the heroku server locally (from the heroku:build)",
-    "heroku:deploy:REM": "?? deploy our server (and its staged client) TO heroku FROM our git repo ... MUST check in changes first",
-    "heroku:logs:REM": "?? tail our remote heroku server app logs"
+
+    "hero:run-local:REM": "run a local heroku server (built from hero:build - in pkgs/server) ... http://localhost:5000",
+    "hero:run-local": "cd pkgs/server && heroku local web",
+
+    "hero:open-local:REM": "open a browser with the local heroku app",
+    "hero:open-local": "start http://localhost:5000/ide",
+
+    "hero:deploy-prod:REM": "deploy the prod heroku server from the main git branch (info gleaned from git repo Heroku remote - CHECK IN FIRST) ... https://dmrst.herokuapp.com/ide/",
+    "hero:deploy-prod": "git subtree push --prefix pkgs/server heroku main",
+
+    "hero:open-prod:REM": "open a browser with the prod heroku app",
+    "hero:open-prod": "start https://dmrst.herokuapp.com/ide/",
+
+    "hero:ps:REM": "see heroku prod server processes (dynos)",
+    "hero:ps": "heroku ps",
+
+    "hero:logs:REM": "tail the heroku prod server logs (CNTL-C to get out)",
+    "hero:logs": "heroku logs --tail",
+
+    "hero:config:REM": "see all heroku prod config env vars (hidden/private for sensitive data)",
+    "hero:config": "heroku config"
   }
 }
