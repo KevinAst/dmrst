@@ -14,14 +14,14 @@ const  log = logger('vit:core:pause');
  * utility.
  *
  * @return {string} an indication of what has transpired
- * (ex: '*** pause() *** pauseed ${ms} ms');
+ * (ex: '*** pause() *** paused ${ms} ms');
  *
  * @throws {Error} when errMsg is supplied.
  */
 export default function pause(ms, errMsg=null) {
   return new Promise( (resolve, reject) => {
     const msg = `*** pause() *** pausing ${ms} ms`;
-    log(msg + (errMsg ? ` ... resulting in an Error: ${errMsg}` : ''));
+    log(msg + (errMsg ? ` ... culminating in an Error: ${errMsg}` : ''));
     setTimeout(() => {
       if (errMsg) {
         reject(new Error(errMsg));
