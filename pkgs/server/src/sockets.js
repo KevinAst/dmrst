@@ -19,11 +19,16 @@ export function initializeSockets(httpServer) {
   const ioServer = new SocketIO(httpServer, {
     // configure cors for our development servers
     // IN PRODUCTION:  our client socket requests are coming from the same domain
-    //                 ... the localhost urls are NOT used (irrelevant: because the localhost is that of the host server) 
+    //                 ... the localhost urls (found below) are NOT used
+    //                     they are irrelevant: because the localhost is that of the host server
     // IN DEVELOPMENT: our client and server are on different domains (localhost ports are different)
     //                 ... the localhost ports below are what is being used by our client SPA
+    //                 ... this is the reason we need this cors configuration!
     cors: {
-      origin: ['http://localhost:8080', 'http://127.0.0.1:8887'],
+      origin: [
+        'http://localhost:8085', // our IDE SPA ... http://localhost:8085/ide/
+        'http://localhost:8086'  // our SYS SPA ... http://localhost:8086/sys/
+      ],
   //? methods: ['GET', 'POST'], TODO: review more options
   //? allowedHeaders: ['my-custom-header'],
   //? credentials: true,

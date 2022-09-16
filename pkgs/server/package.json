@@ -20,7 +20,7 @@
     "node": "16.x"
   },
   "scripts": {
-    "REM": "the --experimental-specifier-resolution=node flag supports the omission of .js and recognition of intex.js etc.",
+    "REM": "the --experimental-specifier-resolution=node flag supports the omission of .js and recognition of index.js etc.",
     "startREM": "the start script is used by heroku to run our app",
     "start": "node --experimental-specifier-resolution=node src/main.js",
     "testESModulesSymLinks": "nodemon --experimental-specifier-resolution=node src/testESModulesSymLinks.js",

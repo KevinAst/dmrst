@@ -12,8 +12,12 @@
   "author": "Kevin J. Bridges <kevin@wiiBridges.com> (https://github.com/KevinAst)",
   "license": "MIT",
   "scripts": {
-    "app:prodBuild": "rollup -c",
-    "app:devServe": "rollup -c -w",
+    "ide:prodBuild": "rollup -c rollup.config.ide.js",
+    "ide:devServe":  "set PORT=8085 && rollup -c rollup.config.ide.js -w",
+    "ide:devPreview": "start http://localhost:8085/ide/",
+    "sys:prodBuild": "rollup -c rollup.config.sys.js",
+    "sys:devServe":  "set PORT=8086 && rollup -c rollup.config.sys.js -w",
+    "sys:devPreview": "start http://localhost:8086/sys/",
     "start": "sirv public --no-clear"
   },
   "devDependencies": {
