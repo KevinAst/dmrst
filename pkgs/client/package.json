@@ -12,6 +12,9 @@
   "author": "Kevin J. Bridges <kevin@wiiBridges.com> (https://github.com/KevinAst)",
   "license": "MIT",
   "scripts": {
+    "a1:REM": "PLEASE NOTE: for a complete desc of these scripts, see: TOOLING.md#npm-scripts",
+    "a2:REM": "PLEASE NOTE: these scripts are NOT OS Neutral - currently running in a windows+cygwin env",
+    "app:prodBuild": "npm run ide:prodBuild && npm run sys:prodBuild",
     "ide:prodBuild": "rollup -c rollup.config.ide.js",
     "ide:devServe":  "set PORT=8085 && rollup -c rollup.config.ide.js -w",
     "ide:devPreview": "start http://localhost:8085/ide/",

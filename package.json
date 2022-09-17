@@ -13,7 +13,8 @@
   "author": "Kevin J. Bridges <kevin@wiiBridges.com> (https://github.com/KevinAst)",
   "license": "MIT",
   "scripts": {
-    "REM": "these scripts are NOT platform neutral - currently running on Windows + cygwin",
+    "a1:REM": "PLEASE NOTE: for a complete desc of these scripts, see: TOOLING.md#npm-scripts",
+    "a2:REM": "PLEASE NOTE: these scripts are NOT OS Neutral - currently running in a windows+cygwin env",
 
     "heroku:build:REM": "a prod build of heroku server (staging prod client UI in server pkg), ready to test/check-in/deploy",
     "heroku:build": "cd pkgs/client && npm run app:prodBuild && cd public && cp -r * ../../server/public/ide",

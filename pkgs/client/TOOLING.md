@@ -16,93 +16,90 @@ AI: ?? L8TR: a lot of "project" references may be more accurately "sub-project"
 # At a Glance
 
 - [NPM Scripts]
-- [Dependencies]
-- [Project Resources]
+- [Dependencies] AI: retrofit-to-this-proj
+- [Project Resources] AI: retrofit-to-this-proj
 - [Project Setup]
-  - [Setup GitHub Project]
+  - [Setup GitHub Project] AI: retrofit-to-this-proj
   - [Setup Client Monorepo]
   - [Two SPAs in One]
-  - [Initialize NPM Project]
-  - [Setup Unit Testing]
-  - [Setup Docs Tooling]
-  - [Setup js.org sub-domain]
-  - [Setup Lib Packaging]
-- [Deploy Project]
-- [Setup New Feature Branch]
+  - [Initialize NPM Project] AI: retrofit-to-this-proj
+  - [Setup Unit Testing] AI: retrofit-to-this-proj
+  - [Setup Docs Tooling] AI: retrofit-to-this-proj
+  - [Setup js.org sub-domain] AI: retrofit-to-this-proj
+  - [Setup Lib Packaging] AI: retrofit-to-this-proj
+- [Deploy Project] AI: retrofit-to-this-proj
+- [Setup New Feature Branch] AI: retrofit-to-this-proj
 
 
 <!--- *** SECTION *************************************************************** --->
 # NPM Scripts
 
-AI: ??$$ retrofit (was copied from tw-themes)
+This section provides a summary of the available **NPM Scripts** for
+**visualize-it**'s `client` sub-project _(`pkgs/client/`)_
+... _organized by task_:
 
-This section provides a summary of the available **NPM Scripts**
-_(organized by task)_:
+**PLEASE NOTE**: These **NPM Scripts** are <mark>NOT</mark> currently
+written in an "OS Neutral" way _(this task is not currently on my
+radar)_.  They are known to run in a windows+cygwin env.
 
-Please NOTE that these **NPM Scripts** are <mark>NOT</mark> written in
-an "OS Neutral" way _(this task is not currently on my radar)_.  They
-are known to run in a Windows/cygwin environment.
 
 ```
 DEVELOPMENT
 ===========
-JS:
-test:watch ..... run test suite, continuously watching for module changes
+ide:devServe ..... start the dev server for the "ide" SPA (watching for code changes)
+ide:devPreview ... launch a browser with the URL for the dev server "ide" SPA
 
-DOCS:
-docs:build   ... manually build the docs (into the _book/ dir)
-                 1. start an internal web server pointing to _book/ dir
-                 2. manually re-execute docs:build whenever docs/ change
+sys:devServe ..... start the dev server for the "sys" SPA (watching for code changes)
+sys:devPreview ... launch a browser with the URL for the dev server "sys" SPA
 
-
-TESTING
-=======
-test ........... run test suite, one time
-test:watch ..... run test suite, continuously watching for module changes
+                   NOTE: You can simultaneously run both SPA dev servers (ide/sys).
+                         Code changes will be dynamically refreshed in both browsers.
+                         This is made possible because each SPA dev server (ide/sys)
+                         are using different ports.
 
 
-DOCS
-====
-docs:build   ... manually build the docs (into the _book/ dir)
-                 - NOTE: this build is executed as the first step in docs:publish
-                 - FOR DOCS DEVELOPMENT:
-                   1. start an internal web server pointing to _book/ dir
-                   2. manually re-execute docs:build whenever docs/ change
-                 - this is MUCH PREFERRED over docs:serve
-                   * it is MUCH FASTER!
-                   * docs:serve is very antiquated (a dead project)
-                     * it is extremely slow
-                     * it constantly stops when any file changes
-                                    
-docs:publish ... publish the latest docs to https://tw-themes.js.org/
-                 NOTE: this script FIRST builds the docs from scratch
-                       ... via predocs:publish
+PRODUCTION BUILD
+================
+app:prodBuild .... prod build for BOTH "ide/sys" SPAs (output: public/)
+ide:prodBuild .... prod build for the "ide" SPA (output: public/ide/)
+sys:prodBuild .... prod build for the "sys" SPA (output: public/ide/)
 
-docs:clean   ... clean machine-generated docs/ directory
+                   NOTE: NO code monitoring is done for production client builds.
 
-                 >>> ANTIQUATED (see notes on docs:build)
-docs:serve ..... launch docs server, continuously watching for docs changes
-                 NOTE: adding `--log=debug --debug` to this npm script CAN BE USEFUL
+                   NOTE: To preview production client builds (in your browser), 
+                         there are two options:
 
+                         1. Serve them from this "client" project:
+                            $ npm run app:prodBuild
+                            $ npm start
+                            - browse:
+                              ... http://localhost:8080/ide/
+                              ... http://localhost:8080/sys/
 
-BUNDLE/DEPLOY
-=============
-lib:build ...... build library bundle in lib/ directory
-                 NOTE: This script FIRST insures all unit tests pass
-                       ... via prelib:build
-
-lib:clean ...... clean machine-generated lib/ directory
-
-                 NOTE: to deploy library:
-                 $ npm publish
-                   ... will auto build lib/ directory
-                       via: "prepare": "npm run lib:build" 
-                   ... and deploy to NPM
+                         2. Stage/Review the client build in the server project:
+                            $ cd {projRoot}/pkgs/server
+                            $ npm run hero:build    AI: insure this is the way I left it in the server project
+                            $ npm run app:devServe  AI: insure this is the way I left it in the server project
+                            - browse:
+                              ... http://localhost:5000/ide/
+                              ... http://localhost:5000/sys/
 
 
 MISC
 ====
-clean .......... AI: cleans ALL machine-generated directories
+start ............ start a webserver that serves content of the public/ dir
+                   - USED INTERNALLY by "devServer" scripts
+                     * DO NOT CHANGE the "start" name!
+                     * when used in this context:
+                       - the port is overridden by the "devServer" scripts
+                       - code monitoring is done (browser is refreshed on code changes)
+                         ... the dev bundle will inject client-code to "liveload" 
+                             the browser on monitored changes to the code
+                   - CAN BE USED, manually to test results of PROD builds
+                     * when used in this context:
+                       - the port defaults to 8080
+                       - NO code monitoring is done
+                       - for details, see NOTE above (for "preview prod builds")
 ```
 
 
@@ -1202,7 +1199,9 @@ At the end of this process you should have:
 <!--- *** SECTION *************************************************************** --->
 # Deploy Project
 
-AI: retrofit (was copied from tw-themes)
+AI: retrofit (was copied from tw-themes) ...
+
+> ?? for this, simply a brief mention that: because our client is packaged in our server URL, it's deployment is part of the server
 
 This section chronicles the steps in deploying **tw-themes** to NPM.
 

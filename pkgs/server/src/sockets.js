@@ -27,7 +27,10 @@ export function initializeSockets(httpServer) {
     cors: {
       origin: [
         'http://localhost:8085', // our IDE SPA ... http://localhost:8085/ide/
-        'http://localhost:8086'  // our SYS SPA ... http://localhost:8086/sys/
+        'http://localhost:8086', // our SYS SPA ... http://localhost:8086/sys/
+        'http://localhost:8080'  // both IDE/SYS SPA when using "npm start" manually (to test PROD builds)
+                                 //                  ... http://localhost:8080/ide/
+                                 //                  ... http://localhost:8080/sys/
       ],
   //? methods: ['GET', 'POST'], TODO: review more options
   //? allowedHeaders: ['my-custom-header'],
