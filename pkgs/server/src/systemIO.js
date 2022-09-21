@@ -70,11 +70,19 @@ export default function registerSystemHandlers(socket) {
     }
     // ... monitor 'join-room' event
     io.of("/").adapter.on('join-room', async (room, id) => { // ... unsure why I must do namespace stuff here
-      syncParticipantChanges(room, id, 'joined');
+      // only process "system" rooms
+      // ... when room === id, it is the implicit socket room implicitly maintained by socket.io
+      if (room !== id) {
+        syncParticipantChanges(room, id, 'joined');
+      }
     });
     // ... monitor 'leave-room' event AI: untested (don't seem to get leave room when signed out)
     io.of("/").adapter.on('leave-room', async (room, id) => { // ... unsure why I must do namespace stuff here
-      syncParticipantChanges(room, id, 'left');
+      // only process "system" rooms
+      // ... when room === id, it is the implicit socket room implicitly maintained by socket.io
+      if (room !== id) {
+        syncParticipantChanges(room, id, 'left');
+      }
     });
   }
 
