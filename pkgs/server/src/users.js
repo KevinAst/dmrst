@@ -93,7 +93,7 @@ export default function registerUserHandlers(socket) {
 
   // handle sign-out event (a request/response API)
   // NOTE: We sign-out the user associated to THIS socket
-  // ... very rudementary for our test
+  // ... very rudimentary for our test
   socket.on('sign-out', (ack) => {
   
     // NOTE: acknowledgment callback passed following

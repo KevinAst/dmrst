@@ -35,7 +35,7 @@ const  log = logger('vit:server:clientSockets');
 const clientSockets = new Map();
 
 // promote a human-readable array containing all active clientSockets: [{socketId, userId}, ...]
-// ?? logger optimize (may want to retain it when clientSockets change) ... review ALL useage
+// ?? logger optimize (may want to retain it when clientSockets change) ... review ALL usage
 const allEntries = () => Array.from(clientSockets.values()).map(cs => ({socketId: cs.socket.id, userId: cs.userId || 'not-signed-in'}) );
 
 // register our socket.io handlers
@@ -43,7 +43,7 @@ export default function registerClientSocketHandlers(socket) {
 
   log(`registerClientSocketHandlers(for socket: ${socket.id})`);
 
-  // maintain our rudementary clientSockets map
+  // maintain our rudimentary clientSockets map
   // ... this is maintained here because we are invoked as part of the io 'connection' event
   const before = log.v.enabled && allEntries();
   clientSockets.set(socket.id, {socket, userId: null});

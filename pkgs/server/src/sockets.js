@@ -16,7 +16,7 @@ export function initializeSockets(httpServer) {
   // NOTE: this an integral part of our httpServer
   //       - it establishes a 'socket.io' route on the httpServer to handles the initial socket connection
   //         ex: http://{myUrl}/socket.io/bla-bla-bla
-  const ioServer = new SocketIO(httpServer, {
+  const io = new SocketIO(httpServer, {
     // configure cors for our development servers
     // IN PRODUCTION:  our client socket requests are coming from the same domain
     //                 ... the localhost urls (found below) are NOT used
@@ -39,7 +39,7 @@ export function initializeSockets(httpServer) {
   });
 
   // monitor client socket connections, registering ALL APP event listeners
-  ioServer.on('connection', (socket) => {
+  io.on('connection', (socket) => {
     registerUserHandlers(socket);
     registerClientSocketHandlers(socket);
     registerLogFilterSocketHandlers(socket);
