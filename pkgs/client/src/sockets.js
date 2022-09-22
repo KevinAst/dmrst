@@ -2,7 +2,7 @@
 //*** sockets.js ... maintain our client communication websockets (socket.io)
 //***
 
-import socketIOClient                        from "socket.io-client";
+import io                                    from "socket.io-client";
 import {registerAuthSocketHandlers}          from './auth';
 import {registerChatSocketHandlers}          from './chat';
 import {registerSystemStoreSocketHandlers}   from './system';
@@ -23,7 +23,7 @@ const serverURL = isDev ? "http://localhost:5000" : undefined;
 // ... socket:
 //     - this socket object is initially a shell, but is dynamically updated when connected
 log.f(`our client is now making a socket.io connection to our server: ${serverURL || 'THE PRODUCTION HOST SERVER of our CLIENT'}`);
-const socket = socketIOClient(serverURL);
+const socket = io(serverURL);
 
 
 // NOTE: to determine if connection is made or NOT, simply monitor 'connect'
