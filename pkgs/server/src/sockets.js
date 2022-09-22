@@ -44,6 +44,10 @@ export function initializeSockets(httpServer) {
   // monitor client socket connections, registering ALL APP event listeners
   io.on('connection', (socket) => {
     log(`server socket connection to client is now established: ${socket.id} / connected: ${socket.connected}`);
+
+    // NOTE: ?? we have access to any socket.auth.token passed by client -and- is available any time on server-side socket (EX: socket.handshake?.auth?.token)
+    // ?? ... need to work through the details of how reject errors happen
+
     registerUserHandlers(socket);
     registerClientSocketHandlers(socket);
     registerLogFilterSocketHandlers(socket);

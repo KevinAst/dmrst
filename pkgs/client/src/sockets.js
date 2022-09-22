@@ -23,8 +23,12 @@ const serverURL = isDev ? "http://localhost:5000" : undefined;
 // ... socket:
 //     - this socket object is initially a shell, but is dynamically updated when connected
 log.f(`our client is now making a socket.io connection to our server: ${serverURL || 'THE PRODUCTION HOST SERVER of our CLIENT'}`);
-const socket = io(serverURL);
-
+const socket = io(serverURL, {
+  auth: {  // AI: ?? we can pass authorization info to server via this "auth" option
+    token: 'PoopToken', // eventually from localStorage ... CSID / authToken / guestName
+    diddlyBop: 'BoopyTwo' // token is NOT special, can use any prop and/or multiple ones
+  }
+});
 
 // NOTE: to determine if connection is made or NOT, simply monitor 'connect'
 // ... test with 
@@ -37,6 +41,7 @@ const socket = io(serverURL);
 //                                    GET http://localhost:5000/socket.io/?EIO=4&transport=polling&t=NxzvTtB net::ERR_FAILED 200
 // ... AI: what about error trapping?
 socket.on('connect', () => {
+  // NOTE: auth.token IS NOT available on client-side ... only server-side (ex: socket.handshake?.auth?.token)
   log(`client's socket connection to server is now established: ${socket.id} / connected: ${socket.connected}`);
   alert.display('Our server connection is now up and running.');
   // AI: maintain state that our socket connection is UP
