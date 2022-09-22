@@ -9,6 +9,9 @@ import registerLogFilterSocketHandlers  from './core/util/logger/filterLogsIOSer
 import registerChatHandlers             from './chat';
 import registerSystemHandlers           from './systemIO';
 
+import logger from './core/util/logger';
+const  log = logger('vit:server:sockets');
+
 // configure websocket initiation through our httpServer (socket.io)
 export function initializeSockets(httpServer) {
 
@@ -40,6 +43,7 @@ export function initializeSockets(httpServer) {
 
   // monitor client socket connections, registering ALL APP event listeners
   io.on('connection', (socket) => {
+    log(`server socket connection to client is now established: ${socket.id} / connected: ${socket.connected}`);
     registerUserHandlers(socket);
     registerClientSocketHandlers(socket);
     registerLogFilterSocketHandlers(socket);

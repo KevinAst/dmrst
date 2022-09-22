@@ -37,7 +37,7 @@ const socket = io(serverURL);
 //                                    GET http://localhost:5000/socket.io/?EIO=4&transport=polling&t=NxzvTtB net::ERR_FAILED 200
 // ... AI: what about error trapping?
 socket.on('connect', () => {
-  log(`client's socket connection to server is now up: ${socket.id} / connected: ${socket.connected}`);
+  log(`client's socket connection to server is now established: ${socket.id} / connected: ${socket.connected}`);
   alert.display('Our server connection is now up and running.');
   // AI: maintain state that our socket connection is UP
 });
