@@ -2,6 +2,8 @@
 //*** clientSockets.js ... manager of all active client socket connections
 //***
 
+// ?? NOW mostly obsolete ... no longer register this
+
 /**
  *  A "client" is a visualize-it web application instance in a given
  *  browser window.

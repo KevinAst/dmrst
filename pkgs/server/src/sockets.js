@@ -3,8 +3,10 @@
 //***
 
 import {Server as SocketIO}             from 'socket.io';
-import registerUserHandlers             from './users';
-import registerClientSocketHandlers     from './clientSockets';
+import {preAuthenticate}                from './auth';
+import registerAuthHandlers             from './auth'; // ?? new
+//import registerUserHandlers             from './users'; ?? obsolete
+//import registerClientSocketHandlers     from './clientSockets'; ?? obsolete
 import registerLogFilterSocketHandlers  from './core/util/logger/filterLogsIOServer';
 import registerChatHandlers             from './chat';
 import registerSystemHandlers           from './systemIO';
@@ -42,17 +44,33 @@ export function initializeSockets(httpServer) {
   });
 
   // monitor client socket connections, registering ALL APP event listeners
-  io.on('connection', (socket) => {
+  io.on('connection', async (socket) => {
     log(`server socket connection to client is now established: ${socket.id} / connected: ${socket.connected}`);
 
-    // NOTE: ?? we have access to any socket.auth.token passed by client -and- is available any time on server-side socket (EX: socket.handshake?.auth?.token)
-    // ?? ... need to work through the details of how reject errors happen
+    // authenticate client user
+    // ... once complete, the following is established: ?? verify this (and more)
+    //     - socket.data.deviceId
+    //       ... from Device, we have access to user
+    //           getDevice(socket || socketId): Device
+    //           getUser(socket || socketId):   User (i.e. device.user)
+    await preAuthenticate(socket); // ??$$ NEW
 
-    registerUserHandlers(socket);
-    registerClientSocketHandlers(socket);
+    // wire up our event handlers for this socket/window
+    registerAuthHandlers(socket);
+//  registerUserHandlers(socket); ?? obsolete
+//  registerClientSocketHandlers(socket);?? obsolete
     registerLogFilterSocketHandlers(socket);
     registerChatHandlers(socket);
     registerSystemHandlers(socket);
+
+    // on socket disconnects - clean up our event handlers for this socket/window
+    // ?? unclear if this is needed (to prevent memory leaks) -or- if it is done automatically
+    // ?? RESEARCH: if we do this, it mat have ramifications to lower-level logic that is monitoring 'disconnect'
+//? socket.on('disconnect', () => {
+//?   socket.removeAllListeners();
+//? }
   });
+
+
 
 }
