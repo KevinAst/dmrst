@@ -12,7 +12,7 @@ const  log = logger('vit:client:user');
 // ?? DO THIS:
 // NOTE: ALL user state is gleaned from our server
 //       - EITHER via a direct sign-in process
-//       - OR our auto-authenticate handshake protocal
+//       - OR our auto-authenticate handshake protocol
 // NOTE: For auto-authentication, this state is seeded from localStorage (indirectly)
 //       - localStorage items:
 //         * token:     email#/#pass (encrypted)
@@ -20,7 +20,7 @@ const  log = logger('vit:client:user');
 //       - HOWEVER we DO NOT seed this localStorage state directly here
 //         * It is an "indirect process"
 //         * PASSING through our server
-//           ... through our auto-authenticate handshake protocal
+//           ... through our auto-authenticate handshake protocol
 //         * BECAUSE all user state MUST be in-sync with our server
 
 // setup our initial store value
@@ -41,7 +41,7 @@ const initialStoreValue = {
   // ?? NOT NEEDED, because authenticated values ALWAYS reflect verified server interaction
   // authenticated: false, // server reflection of authentication (true: above email/name is verified)
 
-  // for registered guests (NOT signed-in) ...
+  // for registered guests (that are NOT signed-in) ...
   guestName: '',
 
   // ***********************************************
@@ -87,7 +87,7 @@ const initialStoreValue = {
 };
 
 // internal function that creates our one-and-only user custom store
-// ... this same object instance will reflectivally change content over time
+// ... this same object instance will reflectively change content over time
 //     with signIn(), signOut(), etc.
 function createUser() {
 
@@ -151,7 +151,7 @@ function createUser() {
       update(state => ({...state, ...userAuthChanges}));
 
       // that's all folks
-      alert.display(`Your user identity has been synced from another app instance in a seperate browser window.`);
+      alert.display(`Your user identity has been synced from another app instance in a separate browser window.`);
     },
 
 	};
@@ -167,7 +167,7 @@ export default user;
 // auto sign-in if userId retained in localStorage
 // ... keeps server in-sync
 // ... very crude for now
-// ... timeout is crude way of allowing our socket initialization to stabalize :-(
+// ... timeout is crude way of allowing our socket initialization to stabilize :-(
 //? setTimeout(() => {
 //?   const userId = localStorage.getItem('vitUserId'); // userId retained in localStorage
 //?   if (userId) {

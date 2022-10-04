@@ -240,7 +240,7 @@ export default function registerSystemHandlers(socket) {
     //   model
     // };
 
-    // N/A:  KISS: Our current philosophy is we can solicite participants at any time, even when running
+    // N/A:  KISS: Our current philosophy is we can solicit participants at any time, even when running
     // ERROR if we are still soliciting participants
 
     // N/A:  Our current philosophy is we get the initial state from the host
@@ -269,7 +269,7 @@ export default function registerSystemHandlers(socket) {
 
 
     //***
-    //*** remaining logic is our long-running background "tick" processer
+    //*** remaining logic is our long-running background "tick" processor
     //***
 
     // the remaining logic represents our long-running background "tick"
@@ -282,13 +282,13 @@ export default function registerSystemHandlers(socket) {
       log(`system '${sysId}' tick processor`);
 
       // our primary tick processing loop
-      // ... we need to communicate to each participant seperatly
+      // ... we need to communicate to each participant separately
       // ... we refresh the set of room sockets on each cycle,
       //     supporting the case of joins during a system run
       const participantSockets = await io.in(sysId).fetchSockets(); // ... an array of sockets[]
       log(`system '${sysId}' tick processor, number of participants: ${participantSockets.length}`);
 
-      // itterate over each participant socket individually
+      // iterate over each participant socket individually
       // - issuing the 'system-tick' events to EACH system socket,
       // - obtaining each participant's stateChanges
       // NOTE: We use individual socket communication to facilitate a request/response
@@ -314,7 +314,7 @@ export default function registerSystemHandlers(socket) {
           if (stateChanged) {
             // retain the state changes in our server-based model
             // NOTE: We simply mutate the system.model directly
-            //       ... using a simple patteren, restricted to what we know we have
+            //       ... using a simple pattern, restricted to what we know we have
             const model = system.model;
             Object.entries(stateChanges).forEach(([key, val]) => {
               const [compKey, propKey] = key.split('.');
@@ -405,7 +405,7 @@ export default function registerSystemHandlers(socket) {
 function systemTick(sysId, participantSocket) {
   // promise wrapper of our socket message protocol
   return new Promise((resolve, reject) => {
-    // issue the 'sytem-tick' request to our client participant
+    // issue the 'system-tick' request to our client participant
     // ... we use a timeout, so our client CANNOT lock-up the entire process
     participantSocket.timeout(5000).emit('system-tick', sysId, socketAckFn_timeout(resolve, reject));
   });

@@ -185,7 +185,7 @@ export default function registerAuthHandlers(socket) {
 // ?? TEST
 function createUser({email='', name='', admin=false, guestName=''}) { // ?? how do I want to do this?
 
-  // closly mimic client-side user object (a reflexive svelte store)
+  // closely mimic client-side user object (a reflexive svelte store)
   const user = {
     email, // email (user authentication ID)
     name, // name of user (from server profile)
@@ -399,13 +399,13 @@ export async function preAuthenticate(socket) {
     let user = undefined;
 
     // for a pre-existing device, the user is automatically accepted from their existing session
-    // ... in other words, they are already running our app in a seperate browser window, and we accept those credentials
+    // ... in other words, they are already running our app in a separate browser window, and we accept those credentials
     let device = getDevice(deviceId);
     if (device) {
       user = getUser(device);
     }
 
-    // on first-use of this device/user (i.e. a non-existant device/user)
+    // on first-use of this device/user (i.e. a non-existent device/user)
     // ... we define a new device/user authenticated from optional saved client credentials
     else {
       // L8TR: AI: 
