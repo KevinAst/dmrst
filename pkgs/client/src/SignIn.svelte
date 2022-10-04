@@ -15,21 +15,21 @@
 
  // our input state (bound to input controls)
  // ?? consider initializing these from our user store? ... IN a module state ?? unsure if we can use $user in a module scope?
- $:  email    = `${userName}@gmail.com`;  // ?? make this a real email field -and- populate user.name FROM server (TO client store) ... along with things like enablement.admin
+ $:  email    = userName ? `${userName}@gmail.com` : '';  // ?? make this a real email field -and- populate user.name FROM server (TO client store) ... along with things like enablement.admin
  let userName = '';
  let pass     = '';
  let signInMsg = '';
 
- let guestName = '';
+ let guestName = $user.guestName;
  let registerMsg = '';
 
- async function handleRegister() {
+ async function handleRegister() { // ?? OBSOLETE ... everything done in signin
    // ?? do something
  }
 
  async function handleSignIn() {
    try {
-     await user.signIn(email, pass);
+     await user.signIn(email, guestName);
      signInMsg = ''; // ... clear any prior message
    }
    catch(e) {

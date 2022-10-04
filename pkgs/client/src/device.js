@@ -1,4 +1,4 @@
-const DEVICE_ID = 'DeviceId';
+const DEVICE_ID = 'deviceId';
 
 /********************************************************************************
  * Return a "simulated" deviceId for this client app.  This is a

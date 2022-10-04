@@ -30,22 +30,15 @@ export default function registerAuthHandlers(socket) {
 
   //*---------------------------------------------------------------------------
   //* handle client sign-in request (a request/response API)
-  //* RETURN: auth structure (via ack):
+  //* RETURN: (via ack):
   //*           {
-  //*             email: string,
-  //*             name:  string,
-  //*             enablement: {
-  //*               admin: boolean,
-  //*             },
+  //*             userState, // to update client user object
+  //*             token,     // to be retained on client (for preAuthenticate)
   //*           }
-  //* THROW:  Error (via ack) with optional e.userMsg (when e.isExpected()) for expected user error (ex: invalid password)
+  //* THROW:  Error (via ack) with optional e.userMsg (when e.isExpected()) for expected user error (ex: invalid email)
   //*---------------------------------------------------------------------------
-  socket.on('sign-in', (email, pass, ack) => {
-
+  socket.on('sign-in', (email, guestName, ack) => {
     const log = logger(`${logPrefix}:sign-in`);
-
-    // ??$$ GOOD START (retrofit to latest)  *****************************************
-
     log(`Servicing 'sign-in' request/response on socket: ${socket.id}`);
 
     // convenience util
@@ -55,68 +48,70 @@ export default function registerAuthHandlers(socket) {
            userMsg});
     }
 
+    // convenience util
+    function validEmail(emailStr) {
+      var re = /\S+@\S+\.\S+/; // VERY SIMPLISTIC ... anystring@anystring.anystring
+      return re.test(emailStr);
+    }
+
     // validate request params
-    if (!email) {
-      return userErr('email must be supplied');
+    if (email && !validEmail(email)) {
+      return userErr('Email is invalid');
     }
-    if (!pass) {
-      return userErr('password must be supplied');
+    if (!email && !guestName) {
+      return userErr('Either Email or Guest Name must be supplied (or both)');
     }
-    if (pass !== 'b') {
-      return userErr('invalid password ... try "b"');
-    }
+    // AI: eventually we will do 2nd phase to supply an email verification code
+    //? if (!pass) {
+    //?   return userErr('password must be supplied');
+    //? }
+    //? if (pass !== 'b') {
+    //?   return userErr('invalid password ... try "b"');
+    //? }
 
-    // establish various values from our user profile
-    const [name] = email.split('@'); // AI: simulated user profile
-    const admin  = name.toLowerCase() === 'kevin' ? true : false; // AI: simulated authorization process
+    // KEY: user sign-in successful - NOW update our server state
 
-    // user sign-in successful - update our server state
-    // NOTE: our basic device/socket structure is pre-established via preAuthenticate().
-    const user = getUser(socket); // ... we mutate this object :-)
-    user.email = email;
-    user.name  = name;
-    user.enablement.admin = admin;
-//  user.guestName = xx; // unchanged on an explicit sign-in
+    // obtain the user associated to this socket -AND- update it's key aspects
+    // ... NOTE: our basic socket/device/user structure is pre-established via preAuthenticate()
+    // ... NOTE: we mutate this object :-)
+    const user = getUser(socket);
+    user.email     = email;
+    user.guestName = guestName;
 
-    // broadcast userAuthChanges to all clients of this device
-    // ... this will change the user/authentication for ALL apps running on this device (all windows of this browser instance)
-    const userAuthChanges = {
-      email: user.email,
-      name:  user.name,
-      enablement: {
-        admin: user.enablement.admin,
-      },
-//    guestName: user.guestName, // unchanged on an explicit sign-in
-    };
-    broadcastUserAuthChanged(socket, userAuthChanges);
+    // re-populate all other user state (via user profile / enablements)
+    populateUserProfile(user);
+
+    // broadcast the latest userState to all clients of this device
+    // ... this will change the user/authentication for ALL apps running on this device (all app windows of this browser instance)
+    const userState = extractUserState(user);
+    broadcastUserAuthChanged(socket, userState);
+
+    // generate the token to be sent to our client
+    const token = encodeUserToken(user, socket.data.deviceId);
 
     // acknowledge success
-    // ... for the initiating socket, this is how it is update
+    // ... for the initiating client, this is how it is updated
     //     >>> it knows to update localStorage too
     // ... for other clients of this device, they are updated via the broadcast event (above)
-    return ack({value: userAuthChanges});
+    return ack({value: {
+      userState,
+      token,
+    }});
   });
 
 
   //*---------------------------------------------------------------------------
-  //* handle sign-out event (a request/response API)
+  //* handle sign-out request (a request/response API)
   //* NOTE: We sign-out the user associated to THIS socket
-  //* ... very rudimentary for our test
-  //* RETURN: auth structure (via ack):
+  //* RETURN: (via ack):
   //*           {
-  //*             email: string, ??????????????
-  //*             name:  string,
-  //*             enablement: {
-  //*               admin: boolean,
-  //*             },
+  //*             userState, // to update client user object
+  //*             token,     // to be retained on client (for preAuthenticate)
   //*           }
-  //* THROW:  Error (via ack) with optional e.userMsg (when e.isExpected()) for expected user error (ex: Cannot sign-out, user NOT signed-in)
+  //* THROW:  Error (via ack) with optional e.userMsg (when e.isExpected()) for expected user error (ex: User NOT signed-in)
   //*---------------------------------------------------------------------------
   socket.on('sign-out', (ack) => {
     const log = logger(`${logPrefix}:sign-out`);
-
-    // ??$$ GOOD START (retrofit to latest)  *****************************************
-
     log(`Servicing 'sign-out' request/response via socket: ${socket.id}`);
 
     // convenience util
@@ -132,6 +127,8 @@ export default function registerAuthHandlers(socket) {
     // return ack({errMsg: 'sign-out ... this is a test of an UNEXPECTED Error FROM the server'});
 
     // obtain the user associate to this socket
+    // ... NOTE: our basic socket/device/user structure is pre-established via preAuthenticate()
+    // ... NOTE: we mutate this object :-)
     const user = getUser(socket); // ... we mutate this object (below)
 
     // verify this user is signed in
@@ -139,30 +136,28 @@ export default function registerAuthHandlers(socket) {
       return userErr(`Cannot sign-out user ${user.getUserName()}, USER IS NOT signed-in.`);
     }
 
-    // user sign-out successful - update our server state
-    // NOTE: our basic device/socket structure is pre-established via preAuthenticate().
+    // KEY: user sign-out successful - update our server state
     user.email = '';
-    user.name  = '';
-    user.enablement.admin = false;
-//  user.guestName = xx; // unchanged on an explicit sign-in
 
-    // broadcast userAuthChanges to all clients of this device
-    // ... this will change the user/authentication for ALL apps running on this device (all windows of this browser instance)
-    const userAuthChanges = {
-      email: user.email,
-      name:  user.name,
-      enablement: {
-        admin: user.enablement.admin,
-      },
-//    guestName: user.guestName, // unchanged on an explicit sign-in
-    };
-    broadcastUserAuthChanged(socket, userAuthChanges);
+    // re-populate all other user state (via user profile / enablements)
+    populateUserProfile(user);
+
+    // broadcast the latest userState to all clients of this device
+    // ... this will change the user/authentication for ALL apps running on this device (all app windows of this browser instance)
+    const userState = extractUserState(user);
+    broadcastUserAuthChanged(socket, userState);
+
+    // generate the token to be sent to our client
+    const token = encodeUserToken(user, socket.data.deviceId);
 
     // acknowledge success
     // ... for the initiating socket, this is how it is update
     //     >>> it knows to update localStorage too
     // ... for other clients of this device, they are updated via the broadcast event (above)
-    return ack({value: userAuthChanges});
+    return ack({value: {
+      userState,
+      token,
+    }});
   });
 
 } // end of ... registerAuthHandlers()
@@ -174,8 +169,6 @@ export default function registerAuthHandlers(socket) {
 //******************************************************************************
 //******************************************************************************
 
-
-// ??$$ MOSTLY DONE (I think) ********************************************************************************
 
 //*-------------------------------------------------
 //* Create new user object using supplied parameters.
@@ -242,6 +235,74 @@ function createUser({email='', name='', admin=false, guestName=''}={}) {
 }
 
 
+//*---------------------------------------------------------
+//* Populate user state from our user profile / enablements
+//* ... as simulated from DB
+//* ... per usr.email (which must be pre-set)
+//* ... NOTE: the supplied user object is mutated
+//*---------------------------------------------------------
+function populateUserProfile(user) {
+  // establish various values from our "simulated" user profile
+  if (user.email) {
+    const [name] = user.email.split('@'); // AI: simulated user profile
+    user.name = name;
+  }
+  else {
+    user.name = '';
+  }
+  user.enablement.admin = user.name.toLowerCase() === 'kevin' ? true : false; // AI: simulated authorization process
+}
+
+const tokenDelim = '#/#';
+
+//*---------------------------------------------------------
+//* Generate an encrypted user token from the supplied user/deviceId
+//* ... suitable to be retained on the client
+//* ... and used in our preAuthenticate process
+//* RETURN: void
+//*---------------------------------------------------------
+function encodeUserToken(user, deviceId) {
+  const token = user.email + tokenDelim + user.guestName + tokenDelim + deviceId;
+  // AI: encrypt
+  return token;
+}
+
+//*---------------------------------------------------------
+//* Extract contents of the supplied encrypted user token
+//* ... provided by our client
+//* ... and used in our preAuthenticate process
+//* RETURN: {email, guestName, deviceId}
+//*---------------------------------------------------------
+function decodeUserToken(token) {
+  // AI: decrypt token
+  const [email, guestName, deviceId] = token.split(tokenDelim);
+  return {email, guestName, deviceId};
+}
+
+//*-------------------------------------------------
+//* Extract the state from the supplied user object
+//* (suitable to be communicated to our client).
+//* RETURN: {
+//*           email,
+//*           name,
+//*           enablement: {
+//*             admin,
+//*           },
+//*           guestName,
+//*         }
+//*-------------------------------------------------
+function extractUserState(user) {
+  return {
+    email: user.email,
+    name:  user.name,
+    enablement: {
+      admin: user.enablement.admin,
+    },
+    guestName: user.guestName,
+  };
+}
+
+
 //*-------------------------------------------------
 //* return the user associate to the supplied socket/device/deviceId (one in the same).
 //* PARM:   ref: deviceId | Device | socket
@@ -255,10 +316,10 @@ export function getUser(ref) {
 //*-------------------------------------------------
 //* return the user name associate to the supplied socket/device/deviceId (one in the same).
 //* PARM:   ref: deviceId | Device | socket
-//* RETURN: userName ... undefined for NOT-FOUND ?? not done yet
+//* RETURN: userName ... undefined for NOT-FOUND
 //*-------------------------------------------------
 export function getUserName(ref) {
-  return getUser(ref).getUserName();
+  return getUser(ref)?.getUserName();
 }
 
 
@@ -271,17 +332,16 @@ export function getUserName(ref) {
 //*     NO response is possible, therefore we DO NOT wrap this in a promise
 //* ... this is a convenience function wrapping the socket protocol
 //* RETURN: void
-// ??$$ THINK IS DONE
 //*-------------------------------------------------
-function broadcastUserAuthChanged(socket,            // the initiating socket (identifying deviceId)
-                                  userAuthChanges) { // the changes to the user object
+function broadcastUserAuthChanged(socket,      // the initiating socket (identifying deviceId)
+                                  userState) { // the current user state
   // broadcast the 'user-auth-changed' event to all clients of the supplied device (via socket)
   const deviceId = socket.data.deviceId;
-  log(`broadcastUserAuthChanged() ... broadcast 'user-auth-changed' event - deviceId: '${deviceId}', userAuthChanges: `, userAuthChanges);
+  log(`broadcastUserAuthChanged() ... broadcast 'user-auth-changed' event - deviceId: '${deviceId}', userState: `, userState);
   // TO ALL room members (using the server)
-//io.in(deviceRoom(deviceId)).emit('user-auth-changed', userAuthChanges);
+//io.in(deviceRoom(deviceId)).emit('user-auth-changed', userState);
   // TO ALL room members MINUS socket (using the socket)
-  socket.to(deviceRoom(deviceId)).emit('user-auth-changed', userAuthChanges);
+  socket.to(deviceRoom(deviceId)).emit('user-auth-changed', userState);
 }
 
 
@@ -398,11 +458,31 @@ export async function preAuthenticate(socket) {
   
   try { // ... try/catch prevents client errors from crashing our server
 
+//  // ?? TEST to see if we can get the clientIP
+//  const clientIP1 = socket.handshake.headers['x-forwarded-for'] || socket.request.connection.remoteAddress; // ... clientIP1: '::1',
+//  const clientIP2 = socket.handshake.address; // THINK returns the Server's IP, not the Client's IP         // ... clientIP2: '::1',
+//  const clientIP3 = socket.request.connection.remoteAddress;                                                // ... clientIP3: '::1',
+//
+//  const sHeaders = socket.handshake.headers; // this includes the port
+//  const clientIP4 = sHeaders['x-forwarded-for'] + ':' + sHeaders['x-forwarded-port'];                        // ... clientIP4: 'undefined:undefined',
+//
+//  const clientIP5 = socket.request.connection._peername; // NOT part of the official API                     // ... clientIP5: { address: '::1', family: 'IPv6', port: 61732 },
+////const clientIP6 = socket.manager.handshaken[socket.id].address;
+//  const clientIP7 = socket.conn.remoteAddress;                                                               // ... clientIP7: '::1'
+////const clientIP8 = socket.handshake.headers['x-forwarded-for'].split(',')[0];
+//
+//  // KJB ATTEMPT: 
+//  const clientIP9  = socket.handshake.headers['origin'];  // KJB: more like the server name (I THINK)        // ... clientIP9: 'http://localhost:8085',
+//  const clientIP10 = socket.handshake.headers['referer']; // KJB: more like the server name (I THINK)        // ... clientIP10: 'http://localhost:8085/'
+//  log(`?? clientIP attempts: `, {clientIP1, clientIP2, clientIP3, clientIP4, clientIP5, clientIP7});
+////log(`?? clientIP headers:  `, socket.handshake.headers);
+//  log(`?? clientIP KJB attempts: `, {clientIP9, clientIP10});
+
     // obtain the deviceId of this client
     let deviceId = await getDeviceIdFromClient(socket);
     log(`deviceId from client: ${deviceId}`);
 
-    // ?? AI: some of this is MAY BE common logic for explicit sign-in
+    // ??$$ AI: some of this is MAY BE common logic for explicit sign-in
 
     let user = undefined;
 
@@ -427,6 +507,8 @@ export async function preAuthenticate(socket) {
       // ... defaults to: unregistered guest user
       user = createUser();
 
+      // ??$$ retrofit point ********************************************************************************
+
       // attempt to authenticate from saved client credentials ... if any (i.e. an auth token)
       // - this may be a pre-authorized user -or- a preliminary user object (without proper credentials)
       //   * our system does allow guest users
@@ -435,7 +517,7 @@ export async function preAuthenticate(socket) {
       //     ... which happens when user explicity signs out, etc.
       // - this allows us to quickly move forward in our process of wiring up the user object
 
-      // ??$$$ cur point *****************************************
+      // ??$$ cur point *****************************************
       //? const token = await getAuthTokenFromClient(socket); // email/pass/guestName
       //? signIn() // apply authorization
       //? - success: ping client that they are verified <<< since client defaults to un-verified, no need to communicate problem
@@ -463,7 +545,7 @@ export async function preAuthenticate(socket) {
     sendPreAuthentication(socket, userAuth);
   }
   catch(e) {
-    // ??$$$ ANY ERROR should use a guest authorization ... and tell the user that (somehow)
+    // ??$$ ANY ERROR should use a guest authorization ... and tell the user that (somehow)
     // ?? stuff something in e and re-throw it
     log.f(`*** ERROR *** Unexpected error in preAuthenticate - socket: '${socket.id}' ... ERROR: ${e}`);
   }

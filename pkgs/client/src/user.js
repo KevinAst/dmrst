@@ -2,11 +2,11 @@
 //*** the current app's user (always available - even when NOT signed in)
 //***
 
-import {writable}    from 'svelte/store';
-import alert         from './alert';
-import {getDeviceId} from './device';
-import {socketAckFn} from './core/util/socketIOUtils';
-import logger        from './core/util/logger';
+import {writable, get} from 'svelte/store';
+import alert           from './alert';
+import {getDeviceId}   from './device';
+import {socketAckFn}   from './core/util/socketIOUtils';
+import logger          from './core/util/logger';
 const  log = logger('vit:client:user');
 
 // ?? DO THIS:
@@ -99,59 +99,69 @@ function createUser() {
 
     // sign-in user
     // RETURN: void <promise>
-    // THROW:  Error with optional e.userMsg (when e.isExpected()) for expected user error (ex: invalid password)
-    signIn: async (email, pass) => {
+    // THROW:  Error with optional e.userMsg (when e.isExpected()) for expected user error (ex: invalid email)
+    signIn: async (email, guestName) => {
 
       log(`signIn user with email: ${email}`);
 
       // request our server to process request
-      // ... allow Error to pass-through to client (ex: invalid password)
-      const auth = await signIn(email, pass);
+      // ... allow Error to pass-through to client (ex: invalid email)
+      const {userState, token} = await signIn(email, guestName);
 
       // NOTE: subsequent steps represent successful sign-in (i.e. NO Error was thrown)
-      log(`successful signIn user with email: ${email} ... auth: `, auth);
+      log(`successful signIn user with email: ${email} / guestName: ${guestName} ... userState: `, userState);
 
       // reflexively update our custom store to reflect this successful sign-in
-      update(state => ({...state, ...auth}));
+      update(state => ({...state, ...userState}));
 
       // retain sign-in token (in support of auto-authentication)
-      localStorage.setItem('token', `${email}#/#${pass}`); // ?? encrypt this
+      localStorage.setItem('token', token);
 
       // that's all folks
-      alert.display(`Welcome ${auth.name} :-)`);
+      alert.display(`Welcome ${get(user).getUserName()} :-)`);
     },
 
     // sign-out user
     // RETURN: void <promise>
-    // THROW:  Error with optional e.userMsg (when e.isExpected()) for expected user error (ex: invalid password)
+    // THROW:  Error with optional e.userMsg (when e.isExpected()) for expected user error (ex: not signed in)
     signOut: async () => {
 
       log(`signOut user`);
 
       // request our server to process request
       // ... allow Error to pass-through to client (ex: invalid password)
-      const auth = await signOut();
+      const {userState, token} = await signOut();
 
       // NOTE: subsequent steps represent successful sign-out (i.e. NO Error was thrown)
-      log(`successful signOut user ... auth: `, auth);
+      log(`successful signOut user ... userState: `, userState);
 
       // reflexively update our custom store to reflect this successful sign-out
-      update(state => ({...state, ...auth}));
+      update(state => ({...state, ...userState}));
 
-      // remove sign-out token (in support of auto-authentication)
-      localStorage.removeItem('token');
+      // retain sign-out token (in support of auto-authentication)
+      // ... even though we are signed-out, the token will contain guestName (optional) and deviceId
+      localStorage.setItem('token', token);
 
       // that's all folks
-      alert.display(`You have now been signed out - please come back soon :-)`);
+      alert.display(`You have now been signed out - you are now a guest ... ${get(user).getUserName()}.`);
     },
 
     // sync user changes from another app instance with the same device/window (browser instance)
-    userAuthChanged: (userAuthChanges) => {
+    userAuthChanged: (userState) => {
       // reflexively update our custom store to reflect these changes
-      update(state => ({...state, ...userAuthChanges}));
+      update(state => ({...state, ...userState}));
 
       // that's all folks
       alert.display(`Your user identity has been synced from another app instance in a separate browser window.`);
+    },
+
+    // sync user changes from 'pre-authentication' event
+    preAuthComplete: (userState) => {
+      // reflexively update our custom store to reflect these changes
+      update(state => ({...state, ...userState}));
+
+      // that's all folks
+      alert.display(`Welcome ${get(user).getUserName()}`);
     },
 
 	};
@@ -200,16 +210,16 @@ export function registerUserSocketHandlers(_socket) {
   // service the 'pre-authentication' event (from the server)
   // ... this happens on app initialization
   // RETURN void ... this is a push event only - no response is possible
-  socket.on('pre-authentication', (userAuth) => {
-    user.userAuthChanged(userAuth);
+  socket.on('pre-authentication', (userState) => {
+    user.preAuthComplete(userState);
   });
 
   // service the 'user-auth-changed' broadcast notification (from the server)
   // ... this happens when the user credentials change from another app instance
   //     within the same device (browser instance)
   // RETURN void ... this is a broadcast event - no response is possible
-  socket.on('user-auth-changed', (userAuthChanges) => {
-    user.userAuthChanged(userAuthChanges);
+  socket.on('user-auth-changed', (userState) => {
+    user.userAuthChanged(userState);
   });
 }
 

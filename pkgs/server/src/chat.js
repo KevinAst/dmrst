@@ -5,7 +5,9 @@
 //***
 
 
-import {getClientSocket} from './clientSockets';
+// import {getClientSocket} from './clientSockets'; ?? NO NO 
+import {getUserName} from './auth';
+
 
 import logger from './core/util/logger';
 const  log = logger('vit:server:chat'); 
@@ -36,14 +38,19 @@ export default function registerChatHandlers(socket) {
       const socketId2 = socket.id;
       clearInWaiting();
 
-      const userId1 = getClientSocket(socketId1)?.userId;
-      const userId2 = getClientSocket(socketId2)?.userId;
+      // ?? NO NO NO NO
+      // const userId1 = getClientSocket(socketId1)?.userId;
+      // const userId2 = getClientSocket(socketId2)?.userId;
+      // ?? YES YES YES
+      const userName1 = getUserName(socketId1);
+      const userName2 = getUserName(socketId2);
+
 
       // connection is technically managed by the client
       // ... communicating other socket.id to EACH client
       log(`connection request - connecting two parties ... socketIds ${socketId1}/${socketId2}`);
-      socket.server.to(socketId1).emit('private-msg-connect', socketId2, userId2);
-      socket.server.to(socketId2).emit('private-msg-connect', socketId1, userId1);
+      socket.server.to(socketId1).emit('private-msg-connect', socketId2, userName2);
+      socket.server.to(socketId2).emit('private-msg-connect', socketId1, userName1);
     }
 
     // when NO waiting connection request, place this socketId in waiting
