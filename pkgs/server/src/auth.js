@@ -352,10 +352,11 @@ function broadcastUserAuthChanged(socket,      // the initiating socket (identif
 //* RETURN: void
 //*-------------------------------------------------
 function sendPreAuthentication(socket,     // the initiating socket
-                               userAuth) { // the current data for user object
+                               userState,  // the current data for user object
+                               token) {    // the token to reset on the client
   // emit the 'pre-authentication' event to the supplied client (socket)
-  log(`sendPreAuthentication() ... emit 'pre-authentication' event - socket: '${socket.id}', userAuth: `, userAuth);
-  socket.emit('pre-authentication', userAuth);
+  log(`sendPreAuthentication() ... emit 'pre-authentication' event - socket: '${socket.id}', userState: `, userState);
+  socket.emit('pre-authentication', userState, token);
 }
 
 
@@ -429,8 +430,9 @@ const deviceRoom = (deviceId) => `device-${deviceId}`;
  * device/user/socket that is assumed throughout all service requests.
  *
  * The resulting user may either be 
- * - authenticated (i.e. signed-in) ... per client-retained authentication tokens
- * - or a guest user
+ * - authenticated (i.e. signed-in) ... per a client-retained authentication token
+ * - or a registered guest user
+ * - or a unregistered guest user
  *
  * The resulting structure established by this function is as follows:
  * - socket.data.deviceId is defined                 ??$$ DO THIS
@@ -482,20 +484,21 @@ export async function preAuthenticate(socket) {
     let deviceId = await getDeviceIdFromClient(socket);
     log(`deviceId from client: ${deviceId}`);
 
-    // ??$$ AI: some of this is MAY BE common logic for explicit sign-in
-
     let user = undefined;
 
     // for a pre-existing device, the user is automatically accepted from their existing session
     // ... in other words, they are already running our app in a separate browser window, and we accept those credentials
     let device = getDevice(deviceId);
     if (device) {
+      log(`?? device pre-existed: `, {deviceId, device});
       user = getUser(device);
     }
 
     // on first-use of this device/user (i.e. a non-existent device/user)
     // ... we define a new device/user authenticated from optional saved client credentials
     else {
+      log(`??? device NOT pre-existed: `, {deviceId});
+
       // L8TR: AI: 
       // request the deviceId to be reset
       // ... this minimizes malicious attempts to re-use a deviceId
@@ -507,23 +510,26 @@ export async function preAuthenticate(socket) {
       // ... defaults to: unregistered guest user
       user = createUser();
 
-      // ??$$ retrofit point ********************************************************************************
-
       // attempt to authenticate from saved client credentials ... if any (i.e. an auth token)
-      // - this may be a pre-authorized user -or- a preliminary user object (without proper credentials)
-      //   * our system does allow guest users
-      // - our client will force either a SignIn -or- a guestName (that identifies system participants)
-      //   * this will go through the normal channels (server interaction) to update our user info
-      //     ... which happens when user explicity signs out, etc.
-      // - this allows us to quickly move forward in our process of wiring up the user object
+      const token = await getAuthTokenFromClient(socket); // email/pass/guestName
+      if (token) {
+        const {email, guestName, deviceId: deviceIdFromToken} = decodeUserToken(token);
+        log(`client token: `, {email, guestName, deviceId: deviceIdFromToken});
 
-      // ??$$ cur point *****************************************
-      //? const token = await getAuthTokenFromClient(socket); // email/pass/guestName
-      //? signIn() // apply authorization
-      //? - success: ping client that they are verified <<< since client defaults to un-verified, no need to communicate problem
-      //? - error:   ping client that they NEED verification <<< for good measure, to insure good state on signout/signin
+        // if the deviceId matches, we accept the credentials of the token
+        // ... otherwise we ignore the token and start out as a Guest user
+        // ??$$ is this correct?
+        if (deviceIdFromToken === deviceId) { // ? or priorDeviceId (on reset)
+          log(`?? client token deviceId matched: `, {deviceIdFromToken, deviceId});
+          user.email     = email;
+          user.guestName = guestName;
+        }
+      }
+        
+      // re-populate all other user state (via user profile / enablements)
+      populateUserProfile(user);
 
-      // create our new device
+      // create our new device (with the contained user)
       device = catalogNewDevice(deviceId, user);
     }
 
@@ -533,18 +539,16 @@ export async function preAuthenticate(socket) {
     // ... the back-reference from the socket/window
     socket.data.deviceId = deviceId;
 
+    // generate the token to be sent to our client
+    // ... we do this because our deviceId may have changed
+    const token = encodeUserToken(user, socket.data.deviceId);
+
     // communicate the pre-authentication to this client (socket)
-    const userAuth = {
-      email: user.email,
-      name:  user.name,
-      enablement: {
-        admin: user.enablement.admin,
-      },
-      guestName: user.guestName,
-    };
-    sendPreAuthentication(socket, userAuth);
+    const userState = extractUserState(user);
+    sendPreAuthentication(socket, userState, token);
   }
   catch(e) {
+    // ??$$ retrofit point ********************************************************************************
     // ??$$ ANY ERROR should use a guest authorization ... and tell the user that (somehow)
     // ?? stuff something in e and re-throw it
     log.f(`*** ERROR *** Unexpected error in preAuthenticate - socket: '${socket.id}' ... ERROR: ${e}`);
@@ -568,5 +572,22 @@ function getDeviceIdFromClient(socket) {
     // issue the 'get-device-id' request to our client
     // ... we use a timeout, so our client CANNOT lock-up the entire process
     socket.timeout(2000).emit('get-device-id', socketAckFn_timeout(resolve, reject));
+  });
+}
+
+
+/********************************************************************************
+ * Obtain the auth token from our client (if any).
+ *
+ * RETURN: token (undefined for none)
+ *
+ * THROW: Error: an unexpected error from client, or NO response (timeout)
+ *********************************************************************************/
+function getAuthTokenFromClient(socket) {
+  // promise wrapper of our socket message protocol
+  return new Promise((resolve, reject) => {
+    // issue the 'get-auth-token' request to our client
+    // ... we use a timeout, so our client CANNOT lock-up the entire process
+    socket.timeout(2000).emit('get-auth-token', socketAckFn_timeout(resolve, reject));
   });
 }

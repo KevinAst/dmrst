@@ -15,7 +15,7 @@ const  log = logger('vit:client:user');
 //       - OR our auto-authenticate handshake protocol
 // NOTE: For auto-authentication, this state is seeded from localStorage (indirectly)
 //       - localStorage items:
-//         * token:     email#/#pass (encrypted)
+//         * token:     email#/#pass (encrypted) ??? NO THIS IS DONE ON SERVER
 //         * guestName: 'Petree'
 //       - HOWEVER we DO NOT seed this localStorage state directly here
 //         * It is an "indirect process"
@@ -156,9 +156,12 @@ function createUser() {
     },
 
     // sync user changes from 'pre-authentication' event
-    preAuthComplete: (userState) => {
+    preAuthComplete: (userState, token) => {
       // reflexively update our custom store to reflect these changes
       update(state => ({...state, ...userState}));
+
+      // update our token as the embedded deviceId may have changed
+      localStorage.setItem('token', token);
 
       // that's all folks
       alert.display(`Welcome ${get(user).getUserName()}`);
@@ -207,11 +210,17 @@ export function registerUserSocketHandlers(_socket) {
     return ack({value: getDeviceId()});
   });
 
+  // service the 'get-auth-token' request (from the server)
+  // RETURN (via ack): token <string>
+  socket.on('get-auth-token', (ack) => {
+    return ack({value: localStorage.getItem('token')});
+  });
+
   // service the 'pre-authentication' event (from the server)
   // ... this happens on app initialization
   // RETURN void ... this is a push event only - no response is possible
-  socket.on('pre-authentication', (userState) => {
-    user.preAuthComplete(userState);
+  socket.on('pre-authentication', (userState, token) => {
+    user.preAuthComplete(userState, token);
   });
 
   // service the 'user-auth-changed' broadcast notification (from the server)
