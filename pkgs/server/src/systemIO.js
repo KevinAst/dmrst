@@ -3,13 +3,17 @@
 //***                 NOTE: This server implementation maintains a server-side state of ALL systems in-use.
 //***
 
-import {getClientSocket}     from './clientSockets';
+import {getUserName}         from './auth';
 import {socketAckFn,
         socketAckFn_timeout} from './core/util/socketIOUtils';
 import pause                 from './core/util/pause';
 
 import logger from './core/util/logger';
 const  log = logger('vit:server:systemIO'); 
+
+const  roomFromSysId = (sysId) => `sys-${sysId}`;
+const  sysIdFromRoom = (room)  => room.replace('sys-', '');
+const  isSysRoom     = (room)  => room.startsWith('sys-');
 
 // all Systems in-use by all clients
 //   a Map:
@@ -51,37 +55,36 @@ export default function registerSystemHandlers(socket) {
 
     // also register io-based events
 
-    // keep track of system participant changes (rooms are aliases to systems)
+    // keep track of system participant changes
     // ... common helper function
-    async function syncParticipantChanges(room, id, what) { // ... what: 'joined'/'left'
+    async function syncParticipantChanges(sysId, sockId, what) { // ... what: 'joined'/'left'
       const log = logger('vit:server:systemIO:syncParticipantChanges'); 
-      log(`processing - room: '${room}', id: '${id}', what: '${what}'`);
+      log(`processing - sysId: '${sysId}', sockId: '${sockId}', what: '${what}'`);
 
-      const sock    = io.sockets.sockets.get(id);
-      const userId  = sock.data.userId;
-      const userMsg = `'${userId}' has ${what} the '${room}' system`;
+      const sock    = io.sockets.sockets.get(sockId);
+      const userMsg = `'${getUserName(sock)}' has ${what} the '${sysId}' system`;
+
+      const room = roomFromSysId(sysId);
       
-      // refresh latest participants (from the room)
+      // refresh latest participants (via the room)
       const participantSockets = await io.in(room).fetchSockets(); // ... an array of sockets[]
-      const participants = participantSockets.map( s => s.data.userId);
+      const participants = participantSockets.map( s => getUserName(s));
 
       // broadcast change to ALL participants
-      systemParticipantsChanged(room, userMsg, participants);
+      systemParticipantsChanged(sysId, userMsg, participants);
     }
     // ... monitor 'join-room' event
-    io.of("/").adapter.on('join-room', async (room, id) => { // ... unsure why I must do namespace stuff here
+    io.of("/").adapter.on('join-room', async (room, sockId) => { // ... unsure why I must do namespace stuff here
       // only process "system" rooms
-      // ... when room === id, it is the implicit socket room implicitly maintained by socket.io
-      if (room !== id) {
-        syncParticipantChanges(room, id, 'joined');
+      if (isSysRoom(room)) {
+        syncParticipantChanges(sysIdFromRoom(room), sockId, 'joined');
       }
     });
     // ... monitor 'leave-room' event AI: untested (don't seem to get leave room when signed out)
-    io.of("/").adapter.on('leave-room', async (room, id) => { // ... unsure why I must do namespace stuff here
+    io.of("/").adapter.on('leave-room', async (room, sockId) => { // ... unsure why I must do namespace stuff here
       // only process "system" rooms
-      // ... when room === id, it is the implicit socket room implicitly maintained by socket.io
-      if (room !== id) {
-        syncParticipantChanges(room, id, 'left');
+      if (isSysRoom(room)) {
+        syncParticipantChanges(sysIdFromRoom(room), sockId, 'left');
       }
     });
   }
@@ -131,7 +134,7 @@ export default function registerSystemHandlers(socket) {
 
     // create a socket.io room from which participants can join
     log(`joining socket.io room: ${system.sysId}`);
-    socket.join(system.sysId); // NOTE: first join dynamically creates the room
+    socket.join(roomFromSysId(system.sysId)); // NOTE: first join dynamically creates the room
 
     // catalog this system
     allSystems.set(sysId, system);
@@ -190,7 +193,8 @@ export default function registerSystemHandlers(socket) {
 
     // join the socket.io room
     log(`joining socket.io room: ${system.sysId}`);
-    socket.join(system.sysId);
+    socket.join(roomFromSysId(system.sysId));
+
 
     // acknowledge success
     log(`successfully joined - sysId: '${sysId}', model: `, system.model);
@@ -285,7 +289,7 @@ export default function registerSystemHandlers(socket) {
       // ... we need to communicate to each participant separately
       // ... we refresh the set of room sockets on each cycle,
       //     supporting the case of joins during a system run
-      const participantSockets = await io.in(sysId).fetchSockets(); // ... an array of sockets[]
+      const participantSockets = await io.in(roomFromSysId(sysId)).fetchSockets(); // ... an array of sockets[]
       log(`system '${sysId}' tick processor, number of participants: ${participantSockets.length}`);
 
       // iterate over each participant socket individually
@@ -298,16 +302,13 @@ export default function registerSystemHandlers(socket) {
       for (const participantSocket of participantSockets) {
 
         // get user of this socket
-        // OLD:
-        // const userId = getClientSocket(participantSocket.id)?.userId; // userId implied by socket (will be null if NOT signed-in)
-        // NEW (EXPERIMENTAL): using userId stored directly on socket
-        const userId = participantSocket.data?.userId; // userId implied by socket (will be null if NOT signed-in)
+        const userName = getUserName(participantSocket); // userName implied by socket
       
         // issue the 'system-tick' event to EACH participant INDIVIDUALLY
         // ... gathering their state changes
         try { // ... we use a try/catch to prevent unexpected client errors from blowing our server sky high
           const stateChanges = await systemTick(sysId, participantSocket);
-          log(`system '${sysId}' user '${userId}' socket '${participantSocket.id}' tick processor - obtained following stateChanges: `, stateChanges);
+          log(`system '${sysId}' user '${userName}' socket '${participantSocket.id}' tick processor - obtained following stateChanges: `, stateChanges);
 
           // apply any supplied delta changes
           const stateChanged = Object.keys(stateChanges).length !== 0;
@@ -328,7 +329,7 @@ export default function registerSystemHandlers(socket) {
           }
         }
         catch(e) {
-          log.f(`*** ERROR *** Unexpected error in client tick processor - system '${sysId}' user '${userId}' socket '${participantSocket.id}' ... ERROR: ${e}`);
+          log.f(`*** ERROR *** Unexpected error in client tick processor - system '${sysId}' user '${userName}' socket '${participantSocket.id}' ... ERROR: ${e}`);
         }
       }
 
@@ -432,7 +433,7 @@ function maintainSystemRunState(system,    // the system to change the run state
   // broadcast the 'system-run-changed' event to ALL client participants
   // ... the system sysId is an alias to our socket.io room
   log(`maintainSystemRunState() ... broadcast 'system-run-changed' event - sysId: '${sysId}', running: ${running}`);
-  io.in(sysId).emit('system-run-changed', sysId, running);
+  io.in(roomFromSysId(sysId)).emit('system-run-changed', sysId, running);
 }
 
 
@@ -448,7 +449,7 @@ function systemStateChanged(sysId,          // the sysId of the system in play
   // broadcast the 'system-state-changed' event to ALL client participants
   // ... the system sysId is an alias to our socket.io room
   log(`systemStateChanged() ... broadcast 'system-state-changed' event - sysId: '${sysId}', stateChanges: `, stateChanges);
-  io.in(sysId).emit('system-state-changed', sysId, stateChanges);
+  io.in(roomFromSysId(sysId)).emit('system-state-changed', sysId, stateChanges);
 }
 
 
@@ -461,9 +462,9 @@ function systemStateChanged(sysId,          // the sysId of the system in play
 // RETURN: void
 function systemParticipantsChanged(sysId,          // the sysId of the system in play
                                    userMsg,        // a user message describing what happened ('UserA' has joined the 'sys123' system)
-                                   participants) { // the array of active userIds in this system
+                                   participants) { // the array of active userNames in this system
   // broadcast the 'system-participants-changed' event to ALL client participants
   // ... the system sysId is an alias to our socket.io room
   log(`systemParticipantsChanged() ... broadcast 'system-participants-changed' event - sysId: '${sysId}': `, {sysId, userMsg, participants});
-  io.in(sysId).emit('system-participants-changed', sysId, userMsg, participants);
+  io.in(roomFromSysId(sysId)).emit('system-participants-changed', sysId, userMsg, participants);
 }

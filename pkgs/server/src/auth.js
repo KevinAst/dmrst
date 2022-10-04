@@ -44,6 +44,8 @@ export default function registerAuthHandlers(socket) {
 
     const log = logger(`${logPrefix}:sign-in`);
 
+    // ??$$ GOOD START (retrofit to latest)  *****************************************
+
     log(`Servicing 'sign-in' request/response on socket: ${socket.id}`);
 
     // convenience util
@@ -88,8 +90,6 @@ export default function registerAuthHandlers(socket) {
     };
     broadcastUserAuthChanged(socket, userAuthChanges);
 
-    // ??$$ I THINK WE ARE DONE HERE *****************************************
-
     // acknowledge success
     // ... for the initiating socket, this is how it is update
     //     >>> it knows to update localStorage too
@@ -115,7 +115,8 @@ export default function registerAuthHandlers(socket) {
   socket.on('sign-out', (ack) => {
     const log = logger(`${logPrefix}:sign-out`);
 
-    // ?? PULL IN CODE ?? retrofit to new stuff
+    // ??$$ GOOD START (retrofit to latest)  *****************************************
+
     log(`Servicing 'sign-out' request/response via socket: ${socket.id}`);
 
     // convenience util
@@ -157,8 +158,6 @@ export default function registerAuthHandlers(socket) {
     };
     broadcastUserAuthChanged(socket, userAuthChanges);
 
-    // ??$$ I THINK WE ARE DONE HERE *****************************************
-
     // acknowledge success
     // ... for the initiating socket, this is how it is update
     //     >>> it knows to update localStorage too
@@ -179,11 +178,11 @@ export default function registerAuthHandlers(socket) {
 // ??$$ MOSTLY DONE (I think) ********************************************************************************
 
 //*-------------------------------------------------
-//* create new user object using supplied parameters
-//* RETURN: User ... newly created
+//* Create new user object using supplied parameters.
+//* DEFAULT: unregistered guest user
+//* RETURN:  newly created User
 //*-------------------------------------------------
-// ?? TEST
-function createUser({email='', name='', admin=false, guestName=''}) { // ?? how do I want to do this?
+function createUser({email='', name='', admin=false, guestName=''}={}) {
 
   // closely mimic client-side user object (a reflexive svelte store)
   const user = {
@@ -248,9 +247,18 @@ function createUser({email='', name='', admin=false, guestName=''}) { // ?? how 
 //* PARM:   ref: deviceId | Device | socket
 //* RETURN: User ... undefined for NOT-FOUND
 //*-------------------------------------------------
-// ?? TEST
 export function getUser(ref) {
   return getDevice(ref)?.user;
+}
+
+
+//*-------------------------------------------------
+//* return the user name associate to the supplied socket/device/deviceId (one in the same).
+//* PARM:   ref: deviceId | Device | socket
+//* RETURN: userName ... undefined for NOT-FOUND ?? not done yet
+//*-------------------------------------------------
+export function getUserName(ref) {
+  return getUser(ref).getUserName();
 }
 
 
@@ -415,13 +423,9 @@ export async function preAuthenticate(socket) {
       //     (where deviceId is stored)
       //? deviceId = await resetDeviceIdOnClient(socket);
 
-      // create our new user (defaults to a guest user)
-      user = createUser({
-        email:     '', // ??
-        name:      '', // ??
-        admin:     false, // ??
-        guestName: '', // ??
-      });
+      // create our new user
+      // ... defaults to: unregistered guest user
+      user = createUser();
 
       // attempt to authenticate from saved client credentials ... if any (i.e. an auth token)
       // - this may be a pre-authorized user -or- a preliminary user object (without proper credentials)
