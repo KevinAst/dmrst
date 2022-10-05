@@ -24,7 +24,7 @@ export function getDeviceId() {
  * of a device (i.e. the first app instance for a given browser
  * instance).
  * 
- * In essance this minimizes hacker re-use, because the deviceId
+ * In essence this minimizes hacker re-use, because the deviceId
  * changes constantly.
  *
  * RETURN: deviceId (newly generated)
@@ -38,5 +38,5 @@ export function resetDeviceId() {
 //       instances will be considered to be running on a different
 //       device.  It technically still works, with that caveat.
 
-// NOTE: Encryption of this item would not aleviate hacker use
+// NOTE: Encryption of this item would not alleviate hacker use
 //       BECAUSE a hacker can still use he encrypted value "as is".
