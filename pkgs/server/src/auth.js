@@ -6,20 +6,24 @@
  * This module (auth.js) manages user authentication,
  * creating and retaining all active users.
  *
- * ?? I think THIS module manages
- *    - User objects
- *    - Device objects
- *    - relationships between Device(User)/Socket(window)
- *
- * ?? describe latest with Device (browser instance)
- *    Device (user) --1:M--< socket (browser windows) with back-ref socket.data.deviceId
+ * This module manages:
+ *   - User objects
+ *   - Device objects
+ *   - bi-directional relationship between Device(User)/Socket(window)
+ *      Device (user) --1:M--< Socket (browser windows) with back-ref socket.data.deviceId
  */
 
 import {socketAckFn_timeout} from './core/util/socketIOUtils';
+import {prettyPrint}         from './util/prettyPrint';
+import {msgClient}           from './chat';
 
 import logger from './core/util/logger';
 const  logPrefix = 'vit:server:auth';
 const  log = logger(`${logPrefix}`);
+
+// the socket.io server in control
+let io = null;
+
 
 //*-----------------------------------------------------------------------------
 //* register our socket.io handlers
@@ -27,6 +31,11 @@ const  log = logger(`${logPrefix}`);
 export default function registerAuthHandlers(socket) {
 
   log(`registerAuthHandlers(for socket: ${socket.id})`);
+
+  // retain our socket.io server
+  if (!io) { // ... do the first time only (all subsequent sockets would be duplicate
+    io = socket.server;
+  }
 
   //*---------------------------------------------------------------------------
   //* handle client sign-in request (a request/response API)
@@ -353,7 +362,7 @@ function broadcastUserAuthChanged(socket,      // the initiating socket (identif
 //*-------------------------------------------------
 function sendPreAuthentication(socket,     // the initiating socket
                                userState,  // the current data for user object
-                               token) {    // the token to reset on the client
+                               token) {    // the token to reset on the client (only when supplied)
   // emit the 'pre-authentication' event to the supplied client (socket)
   log(`sendPreAuthentication() ... emit 'pre-authentication' event - socket: '${socket.id}', userState: `, userState);
   socket.emit('pre-authentication', userState, token);
@@ -373,13 +382,33 @@ function sendPreAuthentication(socket,     // the initiating socket
 //                  - user<Device>
 const devices = new Map();
 
+// diagnostic logging utility
+async function logAllDevices(msg='ALL DEVICES', myLog=log) {
+  if (myLog.enabled) {
+    const allDevices = Array.from(devices.values());
+    const allEntries = [
+      // { 
+      //   device,
+      //   socketIds,
+      // }
+      // ...
+    ];
+    for (const device of allDevices) {
+      const entry = {device};
+      const sockets   = await getSocketsInDevice(device);
+      entry.socketIds = sockets.map(socket => socket.id);
+      allEntries.push(entry);
+    }
+    myLog(`${msg} ... total: ${allDevices.length} ... `, prettyPrint(allEntries));
+  }
+}
+
 //*-------------------------------------------------
 //* return the device associate to the supplied socket/device/deviceId (one in the same).
 //* PARM:   ref: deviceId | Device | socket
 //* RETURN: Device ... undefined for NOT-FOUND
 //*-------------------------------------------------
-// ?? TEST
-function getDevice(ref) {
+export function getDevice(ref) {
   const deviceId = ref?.data?.deviceId /*socket*/ || ref?.deviceId /*device*/ || ref /*deviceId*/;
   return devices.get(deviceId);
 }
@@ -388,8 +417,7 @@ function getDevice(ref) {
 //* create/catalog new device object using supplied parameters
 //* RETURN: Device ... newly created
 //*-------------------------------------------------
-// ?? TEST
-function catalogNewDevice(deviceId, user) {
+function createDevice(deviceId, user) {
   const device = {deviceId, user};
   devices.set(deviceId, device);
   return device;
@@ -400,7 +428,6 @@ function catalogNewDevice(deviceId, user) {
 //* PARM:   ref: deviceId | Device | socket
 //* RETURN: boolean ... true: removed, false: no-op (device NOT cataloged)
 //*-------------------------------------------------
-// ?? TEST
 function removeDevice(ref) {
   const deviceId = ref?.data?.deviceId /*socket*/ || ref?.deviceId /*device*/ || ref /*deviceId*/;
   return devices.delete(deviceId);
@@ -412,11 +439,9 @@ function removeDevice(ref) {
 //* PARM:   ref: deviceId | Device | socket
 //* RETURN: socket[] VIA promise
 //*-------------------------------------------------
-// ?? TEST
 async function getSocketsInDevice(ref) {
   const deviceId = ref?.data?.deviceId /*socket*/ || ref?.deviceId /*device*/ || ref /*deviceId*/;
   const deviceSockets = await io.in(deviceRoom(deviceId)).fetchSockets(); // ... an array of sockets[]
-  log(`?? number of sockets in device '${deviceId}': ${deviceSockets.length}`); // ?? move into usage
   return deviceSockets;
 }
 
@@ -434,12 +459,26 @@ const deviceRoom = (deviceId) => `device-${deviceId}`;
  * - or a registered guest user
  * - or a unregistered guest user
  *
- * The resulting structure established by this function is as follows:
- * - socket.data.deviceId is defined                 ??$$ DO THIS
- * - Device (user) --1:M--< socket (browser windows) ??$$ DO THIS
- * - ??$$ refine/more?
+ * The following structure established by this function at the initialization
+ * of the socket connection:
+ * - Device object is established, either newly created or existing reference.
+ * - socket.data.deviceId back reference
+ * - bi-directional relationship between Device(User)/Socket(window)
+ *    Device (user) --1:M--< Socket (browser windows) with back-ref socket.data.deviceId
+ *
+ * Once complete, the following API is available:
+ *   + getDevice(deviceId|Device|socket):   Device
+ *   + getUser(deviceId|Device|socket):     User (same as: device.user)
+ *   + getUserName(deviceId|Device|socket): string
  *********************************************************************************/
 export async function preAuthenticate(socket) {
+
+  // retain our socket.io server
+  // ... this is a duplicate of registerAuthHandlers() ... above
+  //     BECAUSE preAuthenticate( is invoked EVEN prior to registerAuthHandlers()
+  if (!io) { // ... do the first time only (all subsequent sockets would be duplicate
+    io = socket.server;
+  }
 
   // NOTE: For this process we do NOT use socket.io's standard
   //       auth.token (supplied at client socket creation time).
@@ -457,47 +496,35 @@ export async function preAuthenticate(socket) {
   //         these dynamics).
 
   const log = logger(`${logPrefix}:preAuthenticate`);
-  
+
+  // working vars scoped outside of try/catch block for error processing
+  let deviceId = undefined;
+  let device   = undefined;
+  let user     = undefined; // contained in device
+
   try { // ... try/catch prevents client errors from crashing our server
 
-//  // ?? TEST to see if we can get the clientIP
-//  const clientIP1 = socket.handshake.headers['x-forwarded-for'] || socket.request.connection.remoteAddress; // ... clientIP1: '::1',
-//  const clientIP2 = socket.handshake.address; // THINK returns the Server's IP, not the Client's IP         // ... clientIP2: '::1',
-//  const clientIP3 = socket.request.connection.remoteAddress;                                                // ... clientIP3: '::1',
-//
-//  const sHeaders = socket.handshake.headers; // this includes the port
-//  const clientIP4 = sHeaders['x-forwarded-for'] + ':' + sHeaders['x-forwarded-port'];                        // ... clientIP4: 'undefined:undefined',
-//
-//  const clientIP5 = socket.request.connection._peername; // NOT part of the official API                     // ... clientIP5: { address: '::1', family: 'IPv6', port: 61732 },
-////const clientIP6 = socket.manager.handshaken[socket.id].address;
-//  const clientIP7 = socket.conn.remoteAddress;                                                               // ... clientIP7: '::1'
-////const clientIP8 = socket.handshake.headers['x-forwarded-for'].split(',')[0];
-//
-//  // KJB ATTEMPT: 
-//  const clientIP9  = socket.handshake.headers['origin'];  // KJB: more like the server name (I THINK)        // ... clientIP9: 'http://localhost:8085',
-//  const clientIP10 = socket.handshake.headers['referer']; // KJB: more like the server name (I THINK)        // ... clientIP10: 'http://localhost:8085/'
-//  log(`?? clientIP attempts: `, {clientIP1, clientIP2, clientIP3, clientIP4, clientIP5, clientIP7});
-////log(`?? clientIP headers:  `, socket.handshake.headers);
-//  log(`?? clientIP KJB attempts: `, {clientIP9, clientIP10});
+    // TEST ERROR CONDITION: 
+    // ... also try NOT responding on client 'get-device-id' event (see client/src/user.js)
+    //     resulting in time-out error
+    // if (1==1) throw new Error('Test error in preAuthenticate');
 
     // obtain the deviceId of this client
-    let deviceId = await getDeviceIdFromClient(socket);
+    deviceId = await getDeviceIdFromClient(socket);
     log(`deviceId from client: ${deviceId}`);
-
-    let user = undefined;
 
     // for a pre-existing device, the user is automatically accepted from their existing session
     // ... in other words, they are already running our app in a separate browser window, and we accept those credentials
-    let device = getDevice(deviceId);
+    device = getDevice(deviceId);
     if (device) {
-      log(`?? device pre-existed: `, {deviceId, device});
+      log(`device ${deviceId} pre-existed (re-used): `, prettyPrint({device}));
       user = getUser(device);
     }
 
     // on first-use of this device/user (i.e. a non-existent device/user)
     // ... we define a new device/user authenticated from optional saved client credentials
     else {
-      log(`??? device NOT pre-existed: `, {deviceId});
+      log(`device ${deviceId} did NOT pre-exist ... create/catalog new`);
 
       // L8TR: AI: 
       // request the deviceId to be reset
@@ -518,9 +545,12 @@ export async function preAuthenticate(socket) {
 
         // if the deviceId matches, we accept the credentials of the token
         // ... otherwise we ignore the token and start out as a Guest user
-        // ??$$ is this correct?
-        if (deviceIdFromToken === deviceId) { // ? or priorDeviceId (on reset)
-          log(`?? client token deviceId matched: `, {deviceIdFromToken, deviceId});
+        // >>> KEY: This is a "minimal" protection against any
+        //          malicious attempt to steal the token if a hacker
+        //          had access to it in some way.  The deviceId should
+        //          always match (for a given browser instance).
+        if (deviceIdFromToken === deviceId) { // AI: ? or priorDeviceId (when reset - above)
+          log(`client token deviceId matched (accepting credentials): `, {deviceIdFromToken, deviceId});
           user.email     = email;
           user.guestName = guestName;
         }
@@ -530,14 +560,11 @@ export async function preAuthenticate(socket) {
       populateUserProfile(user);
 
       // create our new device (with the contained user)
-      device = catalogNewDevice(deviceId, user);
+      device = createDevice(deviceId, user);
     }
 
-    // wire up this device to our socket (i.e. window association)
-    // ... the room association
-    socket.join( deviceRoom(deviceId) ); // NOTE: first join dynamically creates the room
-    // ... the back-reference from the socket/window
-    socket.data.deviceId = deviceId;
+    // setup the bi-directional relationship between Device(User)/Socket(window)
+    setupDeviceSocketRelationship(device, socket);
 
     // generate the token to be sent to our client
     // ... we do this because our deviceId may have changed
@@ -547,12 +574,116 @@ export async function preAuthenticate(socket) {
     const userState = extractUserState(user);
     sendPreAuthentication(socket, userState, token);
   }
+
+  // try/catch prevent errors from crashing our server (some errors are from our client)
   catch(e) {
-    // ??$$ retrofit point ********************************************************************************
-    // ??$$ ANY ERROR should use a guest authorization ... and tell the user that (somehow)
-    // ?? stuff something in e and re-throw it
-    log.f(`*** ERROR *** Unexpected error in preAuthenticate - socket: '${socket.id}' ... ERROR: ${e}`);
+    // log this error (on server) and notify user of problem
+    const errMsg = `*** ERROR *** Unexpected error in preAuthenticate - socket: '${socket.id}' ... ERROR: ${e}`;
+    const usrMsg = 'A problem occurred in our pre-authentication process (see logs).  ' +
+                   'For the moment, you may continue as a "Guest" user.  ' +
+                   'Try to reconnect or sign-in at a later point.  ' +
+                   'If this problem persists, reach out to our support staff.';
+    log.f(errMsg, e);
+    msgClient(socket, usrMsg, errMsg);
+
+    // INSURE our critical structure has been established
+    // ... even on error conditions
+    // ... at minimum a guest user
+    // ... this structure is assumed throughout our code, and therefore critical
+    // ... NOTE: this logic mimics that of a successful preAuthenticate (see above)
+
+    // NO: With all the conditional logic (above) in establishing this structure, 
+    //     it is thought to be MORE appropriate to strictly use a Guest user (from scratch),
+    //     rather than a miss-mash of re-using existing device/user.
+    //     ... it is confusing when (in the rare case) where multiple windows are signed-in
+    //         and errors causes the re-use of device/user
+    // 1. progressively use any content gleaned before error occured
+    // ... deviceId: use socket.id (very temporary it's all we have)
+    // if (!deviceId) {
+    //   deviceId = socket.id;
+    // }
+    // // ... user: use unregistered guest user
+    // if (!user) {
+    //   user = createUser();
+    // }
+    // // ... device: create a new one
+    // if (!device) {
+    //   device = createDevice(deviceId, user);
+    // }
+    // YES:
+    // 1. start from scratch and utilize content that will create temporary device/user that is an unregistered guest user
+    deviceId = socket.id;
+    user     = createUser();
+    device   = createDevice(deviceId, user);
+
+    // 2. setup the bi-directional relationship between Device(User)/Socket(window)
+    setupDeviceSocketRelationship(device, socket);
+
+    // 3. communicate the pre-authentication to this client (socket)
+    //    ... WITHOUT having client update their token
+    //        BECAUSE this state is temporary till error resolved
+    const userState = extractUserState(user);
+    sendPreAuthentication(socket, userState); // ... NO token is supplied, so it is NOT updated on client
   }
+
+  // log all devices AFTER setup is complete
+  finally {
+    logAllDevices('All Devices AFTER setup', log)
+  }
+}
+
+
+/********************************************************************************
+ * Clear the structures established by preAuthenticate() 
+ * WHEN client socket connection is lost.
+ *
+ * Clearing the following (as needed):
+ *   - User object
+ *   - Device object
+ *   - bi-directional relationship between Device(User)/Socket(window)
+ *      Device (user) --1:M--< Socket (browser windows) with back-ref socket.data.deviceId
+ *********************************************************************************/
+export async function clearAuthenticate(socket) {
+  const log = logger(`${logPrefix}:clearAuthenticate`);
+
+  // NOTE: this is the corollary to setupDeviceSocketRelationship()
+
+  // NOTE: even though disconnected, this socket still retains the data we setup on it's connection
+  //       ... socket.data.deviceId
+  //       ... THIS IS GREAT, as it is needed to do our clean up
+
+
+  // NOTE: socket.io infrastructure dynamically reflects the room association when the socket is disconnected
+
+  // THEREFORE: the only thing left for us to do is:
+  //            remove the associated device when it no longer has any socket/window association
+  const sockets = await getSocketsInDevice(socket);  
+  if (sockets.length === 0) {
+    removeDevice(socket);
+  }
+
+  // that's all folks
+  logAllDevices(`All Devices AFTER disconnect of socket: ${socket.id}, device: ${socket.data.deviceId} ... `, log)
+}
+
+
+/********************************************************************************
+ * setup the bi-directional relationship between Device(User)/Socket(window)
+ *
+ *   Device (user) --1:M--< Socket (browser windows) with back-ref socket.data.deviceId
+ *
+ * RETURN: void
+ *********************************************************************************/
+function setupDeviceSocketRelationship(device, socket) {
+
+  const deviceId = device.deviceId;
+
+  // utilize socket.io room to collect all socket/window of this device
+  // ... NOTE: socket.io infrastructure dynamically updates this collection on socket disconnect
+  socket.join( deviceRoom(deviceId) );
+
+  // define the back-reference from the socket/window TO device
+  socket.data.deviceId = deviceId;
 }
 
 
@@ -571,7 +702,8 @@ function getDeviceIdFromClient(socket) {
   return new Promise((resolve, reject) => {
     // issue the 'get-device-id' request to our client
     // ... we use a timeout, so our client CANNOT lock-up the entire process
-    socket.timeout(2000).emit('get-device-id', socketAckFn_timeout(resolve, reject));
+    const event = 'get-device-id';
+    socket.timeout(2000).emit(event, socketAckFn_timeout(resolve, reject, `process client event: '${event}'`));
   });
 }
 
@@ -588,6 +720,7 @@ function getAuthTokenFromClient(socket) {
   return new Promise((resolve, reject) => {
     // issue the 'get-auth-token' request to our client
     // ... we use a timeout, so our client CANNOT lock-up the entire process
-    socket.timeout(2000).emit('get-auth-token', socketAckFn_timeout(resolve, reject));
+    const event = 'get-auth-token';
+    socket.timeout(2000).emit(event, socketAckFn_timeout(resolve, reject, `process client event: '${event}'`));
   });
 }

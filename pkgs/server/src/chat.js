@@ -7,7 +7,7 @@
 
 // import {getClientSocket} from './clientSockets'; ?? NO NO 
 import {getUserName} from './auth';
-
+import {isString}    from './core/util/typeCheck';
 
 import logger from './core/util/logger';
 const  log = logger('vit:server:chat'); 
@@ -23,10 +23,18 @@ function clearInWaiting() {
   timeout           = null;
 }
 
+// the socket.io server in control
+let io = null;
+
 // register our socket.io handlers
 export default function registerChatHandlers(socket) {
 
   log(`registerChatHandlers(for socket: ${socket.id})`);
+
+  // retain the socket.io server
+  if (!io) { // do the first time only (all subsequent sockets would be duplicate)
+    io = socket.server;
+  }
 
   // handle private-msg solicitation request
   socket.on('private-msg-solicit', () => {
@@ -79,4 +87,25 @@ export default function registerChatHandlers(socket) {
     log(`inform other party (${toSocketId}) that our chat has been disconnected`);
     socket.server.to(toSocketId).emit('private-msg-disconnect', fromSocketId);
   });
+}
+
+
+//*-------------------------------------------------
+//* send a message to the supplied client
+//* ... initiated BY server TO client
+//* ... this is an push event only - NO response is supported
+//* RETURN: void
+//*-------------------------------------------------
+export function msgClient(to,          // either the client socket -or- a room
+                          msg,         // the message to send
+                          errMsg='') { // optional errMsg (to log)
+  // emit the 'msg-from-server' event
+  // ... either broadcast to a room
+  if (isString(to)) {
+    io.in(to).emit('msg-from-server', msg, errMsg);
+  }
+  // ... or to a socket
+  else {
+    to.emit('msg-from-server', msg, errMsg);
+  }
 }

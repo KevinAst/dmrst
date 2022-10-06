@@ -3,10 +3,9 @@
 //***
 
 import {Server as SocketIO}             from 'socket.io';
-import {preAuthenticate}                from './auth';
-import registerAuthHandlers             from './auth'; // ?? new
-//import registerUserHandlers             from './users'; ?? obsolete
-//import registerClientSocketHandlers     from './clientSockets'; ?? obsolete
+import {preAuthenticate,
+        clearAuthenticate}              from './auth';
+import registerAuthHandlers             from './auth';
 import registerLogFilterSocketHandlers  from './core/util/logger/filterLogsIOServer';
 import registerChatHandlers             from './chat';
 import registerSystemHandlers           from './systemIO';
@@ -45,32 +44,33 @@ export function initializeSockets(httpServer) {
 
   // monitor client socket connections, registering ALL APP event listeners
   io.on('connection', async (socket) => {
-    log(`server socket connection to client is now established: ${socket.id} / connected: ${socket.connected}`);
+    log(`socket connection to client is now established: ${socket.id} / connected: ${socket.connected}`);
 
     // authenticate client user
-    // ... once complete, the following is established: ?? verify this (and more)
-    //     - socket.data.deviceId
-    //       ... from Device, we have access to user
-    //           getDevice(socket || socketId): Device
-    //           getUser(socket || socketId):   User (i.e. device.user)
-    await preAuthenticate(socket); // ??$$ NEW
+    await preAuthenticate(socket);
 
     // wire up our event handlers for this socket/window
     registerAuthHandlers(socket);
-//  registerUserHandlers(socket); ?? obsolete
-//  registerClientSocketHandlers(socket);?? obsolete
     registerLogFilterSocketHandlers(socket);
     registerChatHandlers(socket);
     registerSystemHandlers(socket);
 
-    // on socket disconnects - clean up our event handlers for this socket/window
-    // ?? unclear if this is needed (to prevent memory leaks) -or- if it is done automatically
-    // ?? RESEARCH: if we do this, it mat have ramifications to lower-level logic that is monitoring 'disconnect'
-//? socket.on('disconnect', () => {
-//?   socket.removeAllListeners();
-//? }
+    // monitor client socket disconnects, cleaning the necessary app structures
+    socket.on('disconnect', () => {
+      log(`socket connection to client is now lost: ${socket.id} / connected: ${socket.connected} / deviceId: ${socket.data.deviceId}`);
+
+      // clear our app structures tied to this socket
+      // NOTE: even though disconnected, this socket still retains the data we setup on it's connection
+      //       ... socket.data.deviceId (see log above)
+      //       ... THIS IS GREAT, as we clean up our app structures appropriately!
+      clearAuthenticate(socket);
+      
+      // clear our event handlers for this socket/window
+      // ?? unclear if this is needed (to prevent memory leaks) -or- if it is done automatically
+      // ?? RESEARCH: if we do this, it mat have ramifications to lower-level logic that is monitoring 'disconnect'
+      // socket.removeAllListeners();
+    });
+
   });
-
-
 
 }

@@ -9,19 +9,19 @@ import {socketAckFn}   from './core/util/socketIOUtils';
 import logger          from './core/util/logger';
 const  log = logger('vit:client:user');
 
-// ?? DO THIS:
+// AI: these notes need updating (I think)
 // NOTE: ALL user state is gleaned from our server
 //       - EITHER via a direct sign-in process
-//       - OR our auto-authenticate handshake protocol
+//       - OR our preAuthenticate handshake protocol
 // NOTE: For auto-authentication, this state is seeded from localStorage (indirectly)
 //       - localStorage items:
-//         * token:     email#/#pass (encrypted) ??? NO THIS IS DONE ON SERVER
-//         * guestName: 'Petree'
+//         * deviceId:  string
+//         * token:     encrypted string
 //       - HOWEVER we DO NOT seed this localStorage state directly here
 //         * It is an "indirect process"
 //         * PASSING through our server
-//           ... through our auto-authenticate handshake protocol
-//         * BECAUSE all user state MUST be in-sync with our server
+//           ... through our preAuthenticate handshake protocol
+//         * BECAUSE all user state MUST be in-sync with our server AI: discuss dynamice
 
 // setup our initial store value
 const initialStoreValue = {
@@ -37,9 +37,6 @@ const initialStoreValue = {
   enablement: { // various enablements (from server)
     admin: false,
   },
-
-  // ?? NOT NEEDED, because authenticated values ALWAYS reflect verified server interaction
-  // authenticated: false, // server reflection of authentication (true: above email/name is verified)
 
   // for registered guests (that are NOT signed-in) ...
   guestName: '',
@@ -160,11 +157,22 @@ function createUser() {
       // reflexively update our custom store to reflect these changes
       update(state => ({...state, ...userState}));
 
-      // update our token as the embedded deviceId may have changed
-      localStorage.setItem('token', token);
+      // when supplied, update our token as the embedded deviceId may have changed
+      // ... there are error conditions, where a temporary guest user is established
+      //     where we do NOT want to update the token
+      //     BECAUSE it is a temporary condition, that will be fixed once the error is resolved
+      if (token) {
+        localStorage.setItem('token', token);
+      }
 
-      // that's all folks
-      alert.display(`Welcome ${get(user).getUserName()}`);
+      // display welcome message
+      // ... only when token is supplied
+      // ... when token is NOT supplied it is an error condition
+      //     and the client is sent a detailed message explaining the error
+      //     sooo ... we don't want to cover up that message :-)
+      if (token) {
+        alert.display(`Welcome ${get(user).getUserName()}`);
+      }
     },
 
 	};
@@ -175,21 +183,6 @@ function createUser() {
 // ... a SINGLETON (for this client session)
 const user = createUser();
 export default user;
-
-// ?? NO NO NO ... this is KRAP-O-LA
-// auto sign-in if userId retained in localStorage
-// ... keeps server in-sync
-// ... very crude for now
-// ... timeout is crude way of allowing our socket initialization to stabilize :-(
-//? setTimeout(() => {
-//?   const userId = localStorage.getItem('vitUserId'); // userId retained in localStorage
-//?   if (userId) {
-//?     log(`found persistent userId: ${userId} in localStorage ... activating auto sign-in.`);
-//?     signIn(userId, 'a'); // hack: this is async, however we know it "should be" successful
-//?     user.activateUser(userId);
-//?   }
-//? }, 1); // very short time (1 ms), supporting next event cycle
-
 
 
 //***

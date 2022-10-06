@@ -7,6 +7,7 @@ import {getUserName}         from './auth';
 import {socketAckFn,
         socketAckFn_timeout} from './core/util/socketIOUtils';
 import pause                 from './core/util/pause';
+import {msgClient}           from './chat';
 
 import logger from './core/util/logger';
 const  log = logger('vit:server:systemIO'); 
@@ -50,7 +51,7 @@ export default function registerSystemHandlers(socket) {
   log(`registerSystemHandlers(for socket: ${socket.id})`);
 
   // retain the socket.io server
-  if (!io) { // do the first time only (all subsequent sockets would be duplicate
+  if (!io) { // do the first time only (all subsequent sockets would be duplicate)
     io = socket.server;
 
     // also register io-based events
@@ -329,7 +330,11 @@ export default function registerSystemHandlers(socket) {
           }
         }
         catch(e) {
-          log.f(`*** ERROR *** Unexpected error in client tick processor - system '${sysId}' user '${userName}' socket '${participantSocket.id}' ... ERROR: ${e}`);
+          // log error and report to participants
+          const usrMsg = `The tick processor fielded an unexpected error from client participant: ${userName} ... tick continuing without their input (see logs for detail)`;
+          const errMsg = `*** ERROR *** Unexpected error in client tick processor - system: '${sysId}', participant: '${userName}', socket '${participantSocket.id}' ... tick continuing without their input ... ERROR: ${e}`
+          log.f(errMsg);
+          msgClient(roomFromSysId(sysId), usrMsg, errMsg); // ... for ALL: roomFromSysId(sysId) -OR- for only user in-error: participantSocket
         }
       }
 
@@ -408,7 +413,7 @@ function systemTick(sysId, participantSocket) {
   return new Promise((resolve, reject) => {
     // issue the 'system-tick' request to our client participant
     // ... we use a timeout, so our client CANNOT lock-up the entire process
-    participantSocket.timeout(5000).emit('system-tick', sysId, socketAckFn_timeout(resolve, reject));
+    participantSocket.timeout(5000).emit('system-tick', sysId, socketAckFn_timeout(resolve, reject, `process client event: 'system-tick'`));
   });
 }
 
