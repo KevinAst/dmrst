@@ -497,6 +497,32 @@ export async function preAuthenticate(socket) {
 
   const log = logger(`${logPrefix}:preAuthenticate`);
 
+  // ?? TEMP CODE to see if we can get the clientIP
+  const clientIP1 = socket.handshake.headers['x-forwarded-for'] || socket.request.connection.remoteAddress; // ... clientIP1: '::1',
+  const clientIP2 = socket.handshake.address; // THINK returns the Server's IP, not the Client's IP         // ... clientIP2: '::1',
+  const clientIP3 = socket.request.connection.remoteAddress;                                                // ... clientIP3: '::1',
+  
+  const sHeaders = socket.handshake.headers; // this includes the port
+  const clientIP4 = sHeaders['x-forwarded-for'] + ':' + sHeaders['x-forwarded-port'];                        // ... clientIP4: 'undefined:undefined',
+  
+  const clientIP5 = socket.request.connection._peername; // NOT part of the official API                     // ... clientIP5: { address: '::1', family: 'IPv6', port: 61732 },
+  //const clientIP6 = socket.manager.handshaken[socket.id].address;
+  const clientIP7 = socket.conn.remoteAddress;                                                               // ... clientIP7: '::1'
+  //const clientIP8 = socket.handshake.headers['x-forwarded-for'].split(',')[0];
+  
+  // KJB ATTEMPT: 
+  const clientIP9  = socket.handshake.headers['origin'];  // KJB: more like the server name (I THINK)        // ... clientIP9: 'http://localhost:8085',
+  const clientIP10 = socket.handshake.headers['referer']; // KJB: more like the server name (I THINK)        // ... clientIP10: 'http://localhost:8085/'
+  log(`XX clientIP attempts: `, {clientIP1, clientIP2, clientIP3, clientIP4, clientIP5, clientIP7});
+  //log(`XX clientIP headers:  `, socket.handshake.headers);
+  log(`XX clientIP KJB attempts: `, {clientIP9, clientIP10});
+
+
+
+
+
+
+
   // working vars scoped outside of try/catch block for error processing
   let deviceId = undefined;
   let device   = undefined;
