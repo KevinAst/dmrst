@@ -102,7 +102,8 @@ function createUser() {
       log(`signIn user with email: ${email}`);
 
       // request our server to process request
-      // ... allow Error to pass-through to client (ex: invalid email)
+      // ... allow Error to pass-through to client
+      //     via SignIn.svelte invoker ... ex: invalid email
       const {userState, token} = await signIn(email, guestName);
 
       // NOTE: subsequent steps represent successful sign-in (i.e. NO Error was thrown)
@@ -126,7 +127,8 @@ function createUser() {
       log(`signOut user`);
 
       // request our server to process request
-      // ... allow Error to pass-through to client (ex: invalid password)
+      // ... allow Error to pass-through to client
+      //     via Router.svelte invoker ... ex: not signed in
       const {userState, token} = await signOut();
 
       // NOTE: subsequent steps represent successful sign-out (i.e. NO Error was thrown)

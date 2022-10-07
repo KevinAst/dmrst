@@ -4,8 +4,6 @@
 //***                   ... all chat state is maintained in the client (for each party side :-)
 //***
 
-
-// import {getClientSocket} from './clientSockets'; ?? NO NO 
 import {getUserName} from './auth';
 import {isString}    from './core/util/typeCheck';
 
@@ -46,10 +44,6 @@ export default function registerChatHandlers(socket) {
       const socketId2 = socket.id;
       clearInWaiting();
 
-      // ?? NO NO NO NO
-      // const userId1 = getClientSocket(socketId1)?.userId;
-      // const userId2 = getClientSocket(socketId2)?.userId;
-      // ?? YES YES YES
       const userName1 = getUserName(socketId1);
       const userName2 = getUserName(socketId2);
 

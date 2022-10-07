@@ -52,14 +52,11 @@ socket.on('connect', () => {
 // - either, we have LOST our client network connection
 // - or the server is down
 // NOTE: socket.io will auto-reconnect when the problem is resolved
-//       USING the same socket object instance (with a different socket.id)
+//       USING the same client-side socket object instance (with a different socket.id)
+//       AS OPPOSED TO the server-side, which is a brand new socket object instance
 socket.on('disconnect', () => {
   log(`client's socket connection to server has been lost: ${socket.id} / connected: ${socket.connected}`);
   alert.display('Our server connection has been lost.');
-
-  // ?? NO NO NO
-  // our user is now deactivated (with no server)
-  // ? user.deactivateUser(); // ... this is OK to do EVEN if the user is NOT currently signed-in
 });
 
 // register ALL APP socket event listeners
