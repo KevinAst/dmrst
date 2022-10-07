@@ -121,9 +121,7 @@ function createChat() {
                              }} ));
 
       // notify user new chat message has arrived
-      // ??
       beep();
-
     },
 
     // disconnect chat
@@ -202,5 +200,14 @@ export function registerChatSocketHandlers(_socket) {
   // handle disconnect request from other side
   socket.on('private-msg-disconnect', (otherSocketId) => {
     chat.disconnected(otherSocketId);
+  });
+
+  // handle generic message from server-2-client
+  // ... this is a generic utility ... not really chat related
+  socket.on('msg-from-server', (msg, errMsg) => {
+    if (errMsg) {
+      log.f(errMsg);
+    }
+    alert.display(msg);
   });
 }
