@@ -24,7 +24,7 @@ function createSystemStore(sysId, accessCode, model, isHost, isRunning=false) {
     sysId,            // system identifier -and- alias to room (must be unique on server or will error)
   //accessCode,       // access code to join system (a lite password) ... L8TR: suspect only needed on server
     isHost,           // boolean: true - host, false - participant
-    participants: [/*userId, ...*/], // all active participants in this system ... dynamically maintained when join/leave
+    participants: [/*userName, ...*/], // all active participants in this system ... dynamically maintained when join/leave
     isRunning,        // indicator of whether the system is running
     model,
   });
@@ -311,7 +311,7 @@ export function registerSystemStoreSocketHandlers(_socket) {
       if (comp.type === 'valve' && // valves
           comp.open &&             // that are open
           // when the component name begins with same letter as our active user
-          compName[0].toLowerCase() === activeUser.userId[0].toLowerCase()) {
+          compName[0].toLowerCase() === activeUser.getUserName()[0].toLowerCase()) {
 
         // bump the pressure up by 10
         deltaModelChanges[`${compName}.pres`] = comp.pres + 10;;

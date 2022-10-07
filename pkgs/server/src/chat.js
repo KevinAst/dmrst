@@ -4,8 +4,8 @@
 //***                   ... all chat state is maintained in the client (for each party side :-)
 //***
 
-
-import {getClientSocket} from './clientSockets';
+import {getUserName} from './auth';
+import {isString}    from './core/util/typeCheck';
 
 import logger from './core/util/logger';
 const  log = logger('vit:server:chat'); 
@@ -21,10 +21,18 @@ function clearInWaiting() {
   timeout           = null;
 }
 
+// the socket.io server in control
+let io = null;
+
 // register our socket.io handlers
 export default function registerChatHandlers(socket) {
 
   log(`registerChatHandlers(for socket: ${socket.id})`);
+
+  // retain the socket.io server
+  if (!io) { // do the first time only (all subsequent sockets would be duplicate)
+    io = socket.server;
+  }
 
   // handle private-msg solicitation request
   socket.on('private-msg-solicit', () => {
@@ -36,14 +44,15 @@ export default function registerChatHandlers(socket) {
       const socketId2 = socket.id;
       clearInWaiting();
 
-      const userId1 = getClientSocket(socketId1)?.userId;
-      const userId2 = getClientSocket(socketId2)?.userId;
+      const userName1 = getUserName(socketId1);
+      const userName2 = getUserName(socketId2);
+
 
       // connection is technically managed by the client
       // ... communicating other socket.id to EACH client
       log(`connection request - connecting two parties ... socketIds ${socketId1}/${socketId2}`);
-      socket.server.to(socketId1).emit('private-msg-connect', socketId2, userId2);
-      socket.server.to(socketId2).emit('private-msg-connect', socketId1, userId1);
+      socket.server.to(socketId1).emit('private-msg-connect', socketId2, userName2);
+      socket.server.to(socketId2).emit('private-msg-connect', socketId1, userName1);
     }
 
     // when NO waiting connection request, place this socketId in waiting
@@ -72,4 +81,25 @@ export default function registerChatHandlers(socket) {
     log(`inform other party (${toSocketId}) that our chat has been disconnected`);
     socket.server.to(toSocketId).emit('private-msg-disconnect', fromSocketId);
   });
+}
+
+
+//*-------------------------------------------------
+//* send a message to the supplied client
+//* ... initiated BY server TO client
+//* ... this is an push event only - NO response is supported
+//* RETURN: void
+//*-------------------------------------------------
+export function msgClient(to,          // either the client socket -or- a room
+                          msg,         // the message to send
+                          errMsg='') { // optional errMsg (to log)
+  // emit the 'msg-from-server' event
+  // ... either broadcast to a room
+  if (isString(to)) {
+    io.in(to).emit('msg-from-server', msg, errMsg);
+  }
+  // ... or to a socket
+  else {
+    to.emit('msg-from-server', msg, errMsg);
+  }
 }

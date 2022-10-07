@@ -49,8 +49,12 @@ const  log = logger('vit:core:socketIOUtils');
  * 
  * NOTE:          This utility REQUIRES the activation of ErrorExtensionPolyfill.js
  *                (see Error#defineUserMsg() usage - below).
+ * 
+ * NOTE:          The attemptingTo param is OPTIONAL, and is NOT as critical as it is for socketAckFn_timeout().
+ *                It is possible that no additional context is needed :-)
+ *
  */
-export function socketAckFn(resolve, reject) {
+export function socketAckFn(resolve, reject, attemptingTo) {
 
   // confirm that ErrorExtensionPolyfill has been enabled
   if (!Error.prototype.defineUserMsg) {
@@ -59,45 +63,70 @@ export function socketAckFn(resolve, reject) {
 
   // emit our socket acknowledgment function
   return ({value=undefined, errMsg=undefined, userMsg=undefined}={}) => {
-    commonPayloadHandler(resolve, reject, value, errMsg, userMsg);
+    commonPayloadHandler(resolve, reject, value, errMsg, userMsg, attemptingTo);
   }
 }
 
 
-// WITH TIMEOUT:
-//      When timeout is used, socket.io introduces an additional pipe (so to speak)
-//      where the payload parameter is passed as the 2nd param (timeout errors as the 1st param)
-//      SOOO: the returned function is identical to socketAckFn() EXCEPT it introduces a new 1st param: err
-export function socketAckFn_timeout(resolve, reject) {
+// socketAckFn() WITH TIMEOUT:
+//  - When timeout is used, socket.io introduces an additional pipe (so to speak)
+//    where the payload parameter is passed as the 2nd param (timeout Error object as the 1st param)
+//  - SOOO: the returned function is identical to socketAckFn() EXCEPT it introduces a new 1st param: err
+//  - NOTE: the attemptingTo param is REQUIRED, because it is critical to add context to the timeout error!
+//          Otherwise you would not know WHAT timed-out :-)
+export function socketAckFn_timeout(resolve, reject, attemptingTo) {
 
   // confirm that ErrorExtensionPolyfill has been enabled
   if (!Error.prototype.defineUserMsg) {
+    // AI: really validation assert
     throw new Error('*** ERROR *** socketAckFn_timeout() requires the activation of ErrorExtensionPolyfill.js');
+  }
+
+  // confirm that attemptingTo is supplied (critical to make sense out of timeout errors)
+  if (!attemptingTo) {
+    // AI: really validation assert
+    throw new Error('*** ERROR *** socketAckFn_timeout() requires the attemptingTo param (critical to make sense out of timeout errors)');
   }
 
   // emit our socket acknowledgment function
   return (err, {value=undefined, errMsg=undefined, userMsg=undefined}={}) => {
     // log(`IN socketAck_timeout(err, {value,errMsg,userMsg}): `, {err, value, errMsg, userMsg});
+
     // handle timeout errors
     if (err) {
+      if (err.defineAttemptingToMsg) { // ... for Error objs, add context directly to Error object
+        err.defineAttemptingToMsg(attemptingTo);
+      }
+      else {                           // ... for anything else, add context by coercing err to simple string
+        err = err + ` ... attempting to: ${attemptingTo}`;
+      }
       reject(err);
     }
+
     // handle our normal app-specific payload (can be errors too)
     else {
-      commonPayloadHandler(resolve, reject, value, errMsg, userMsg);
+      commonPayloadHandler(resolve, reject, value, errMsg, userMsg, attemptingTo);
     }
   }
 }
 
-function commonPayloadHandler(resolve, reject, value, errMsg, userMsg) {
+function commonPayloadHandler(resolve, reject, value, errMsg, userMsg, attemptingTo) {
   // emit an "expected" error (with .defineUserMsg())
   // ... in addition to userMsg, this will supplement any supplied errMsg
   if (userMsg) {
-    reject( new Error(errMsg || 'Expected User Defined Condition').defineUserMsg(userMsg) );
+    const err = new Error(errMsg || 'Expected User Defined Condition').defineUserMsg(userMsg);
+    if (attemptingTo) {
+      err.defineAttemptingToMsg(attemptingTo);
+    }
+    reject(err);
   }
   // emit an "unexpected" error
   else if (errMsg) {
-    reject( new Error(errMsg) );
+    const err = new Error(errMsg);
+    if (attemptingTo) {
+      err.defineAttemptingToMsg(attemptingTo);
+    }
+    reject(err);
   }
   // emit a successful value
   // ... can be an undefined value (for void)

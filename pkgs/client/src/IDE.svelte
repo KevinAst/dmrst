@@ -8,7 +8,7 @@
     <p>
       Do normal editing of packages here.
       <br>
-      {#if $user.userId}
+      {#if $user.isSignedIn()}
         <b>WITH</b> the ability to publish your package <i>(because you have signed-in)</i>
       {:else}
         <b>WITHOUT</b> the ability to publish your package <i>(you must sign-in for that)</i>

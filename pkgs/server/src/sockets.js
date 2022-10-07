@@ -3,11 +3,15 @@
 //***
 
 import {Server as SocketIO}             from 'socket.io';
-import registerUserHandlers             from './users';
-import registerClientSocketHandlers     from './clientSockets';
+import {preAuthenticate,
+        clearAuthenticate}              from './auth';
+import registerAuthHandlers             from './auth';
 import registerLogFilterSocketHandlers  from './core/util/logger/filterLogsIOServer';
 import registerChatHandlers             from './chat';
 import registerSystemHandlers           from './systemIO';
+
+import logger from './core/util/logger';
+const  log = logger('vit:server:sockets');
 
 // configure websocket initiation through our httpServer (socket.io)
 export function initializeSockets(httpServer) {
@@ -16,7 +20,7 @@ export function initializeSockets(httpServer) {
   // NOTE: this an integral part of our httpServer
   //       - it establishes a 'socket.io' route on the httpServer to handles the initial socket connection
   //         ex: http://{myUrl}/socket.io/bla-bla-bla
-  const ioServer = new SocketIO(httpServer, {
+  const io = new SocketIO(httpServer, {
     // configure cors for our development servers
     // IN PRODUCTION:  our client socket requests are coming from the same domain
     //                 ... the localhost urls (found below) are NOT used
@@ -39,12 +43,34 @@ export function initializeSockets(httpServer) {
   });
 
   // monitor client socket connections, registering ALL APP event listeners
-  ioServer.on('connection', (socket) => {
-    registerUserHandlers(socket);
-    registerClientSocketHandlers(socket);
+  io.on('connection', async (socket) => {
+    log(`socket connection to client is now established: ${socket.id} / connected: ${socket.connected}`);
+
+    // authenticate client user
+    await preAuthenticate(socket);
+
+    // wire up our event handlers for this socket/window
+    registerAuthHandlers(socket);
     registerLogFilterSocketHandlers(socket);
     registerChatHandlers(socket);
     registerSystemHandlers(socket);
+
+    // monitor client socket disconnects, cleaning the necessary app structures
+    socket.on('disconnect', () => {
+      log(`socket connection to client is now lost: ${socket.id} / connected: ${socket.connected} / deviceId: ${socket.data.deviceId}`);
+
+      // clear our app structures tied to this socket
+      // NOTE: even though disconnected, this socket still retains the data we setup on it's connection
+      //       ... socket.data.deviceId (see log above)
+      //       ... THIS IS GREAT, as we clean up our app structures appropriately!
+      clearAuthenticate(socket);
+      
+      // clear our event handlers for this socket/window
+      // ?? unclear if this is needed (to prevent memory leaks) -or- if it is done automatically
+      // ?? RESEARCH: if we do this, it mat have ramifications to lower-level logic that is monitoring 'disconnect'
+      // socket.removeAllListeners();
+    });
+
   });
 
 }
