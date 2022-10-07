@@ -17,7 +17,7 @@
     "a2:REM": "PLEASE NOTE: these scripts are NOT OS Neutral - currently running in a windows+cygwin env",
 
     "heroku:build:REM": "a prod build of heroku server (staging prod client UI in server pkg), ready to test/check-in/deploy",
-    "heroku:build": "cd pkgs/client && npm run app:prodBuild && cd public && cp -r * ../../server/public/ide",
+    "heroku:build": "cd pkgs/client && npm run app:prodBuild && cd public && cp -r * ../../server/public",
 
     "hero:run-local:REM": "run a local heroku server (built from hero:build - in pkgs/server) ... http://localhost:5000",
     "hero:run-local": "cd pkgs/server && heroku local web",
