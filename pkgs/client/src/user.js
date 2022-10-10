@@ -21,7 +21,7 @@ const  log = logger('vit:client:user');
 //         * It is an "indirect process"
 //         * PASSING through our server
 //           ... through our preAuthenticate handshake protocol
-//         * BECAUSE all user state MUST be in-sync with our server AI: discuss dynamice
+//         * BECAUSE all user state MUST be in-sync with our server AI: discuss dynamics
 
 // setup our initial store value
 const initialStoreValue = {
