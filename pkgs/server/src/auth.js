@@ -184,14 +184,13 @@ export default function registerAuthHandlers(socket) {
 //* supplied clientAccessIP (per our persistent user-DB registry)?
 //* RETURN: boolean
 //*---------------------------------------------------------
-// ?? NEW
 function isEmailAuthenticatedOnIP(email, clientAccessIP) {
   // AI: ULTIMATELY, implement via a DB operation
-  // AI: ?? TEMPORARILY, for initial testing, consider implementing in localStorage
+  // AI: ?? 444 TEMPORARILY hard-code, for initial testing, consider implementing in localStorage
   return true;
 }
 
-// AI: ?? must implement API to maintain: email/clientAccessIPs
+// AI: ?? 444 must implement API to maintain: email/clientAccessIPs
 
 
 
@@ -415,7 +414,6 @@ function sendPreAuthentication(socket,     // the initiating socket
 //* 
 //* RETURN: clientAccessIP <string> ... ex: '72.61.152.131'
 //*-------------------------------------------------
-// ?? NEW
 function fetchClientAccessIP(socket) {
   // found in the http header where the socket was created
   // ... X-Forwarded-For MAY CONTAIN: <client>, <proxy1>, <proxy2>
@@ -442,7 +440,6 @@ const deviceIdDelim = '@/@';
 //* Generate the deviceIdFull from the supplied deviceId/clientAccessIP
 //* RETURN: void
 //*---------------------------------------------------------
-// ?? NEW
 function encodeDeviceIdFull(deviceId, clientAccessIP) {
   return deviceId + deviceIdDelim + clientAccessIP;
 }
@@ -588,9 +585,9 @@ export async function preAuthenticate(socket) {
   const log = logger(`${logPrefix}:preAuthenticate`);
 
   // working vars scoped outside of try/catch block for error processing recovery
-  let clientAccessIP = '';        // the client IP (access point ... i.e. router) ?? NEW
+  let clientAccessIP = '';        // the client IP (access point ... i.e. router)
   let deviceId       = undefined; // the client-managed logical deviceId (a persisted random num via localStorage)
-  let deviceIdFull   = undefined; // device key (combining deviceId/clientAccessIP) ?? NEW
+  let deviceIdFull   = undefined; // device key (combining deviceId/clientAccessIP)
   let device         = undefined; // the device obj, containing user, and managing concurrent client sessions (i.e. sockets - alias to browser window)
   let user           = undefined; // contained in device
 
@@ -602,7 +599,6 @@ export async function preAuthenticate(socket) {
     // if (1==1) throw new Error('Test error in preAuthenticate');
 
     // obtain the clientAccessIP associated to the supplied socket.
-    // ?? NEW
     clientAccessIP = fetchClientAccessIP(socket);
     log(`clientAccessIP from client socket(${socket.id}): ${clientAccessIP}`);
 
@@ -611,7 +607,6 @@ export async function preAuthenticate(socket) {
     log(`deviceId from client socket(${socket.id}): ${deviceId}`);
 
     // define deviceIdFull (combination of deviceId/clientAccessIP)
-    // ?? NEW
     deviceIdFull = encodeDeviceIdFull(deviceId, clientAccessIP);
 
     // for a pre-existing device, the user is automatically accepted from their existing session
@@ -628,7 +623,7 @@ export async function preAuthenticate(socket) {
     else {
       log(`device ${deviceIdFull} did NOT pre-exist (was not active) ... creating a new one`);
 
-      // L8TR: AI: THINK I WANT TO NIX THIS, along with the reset function (here, and the client's implementation)
+      // AI: ??222 CONSIDER NIXING any reset of the deviceId, ALONG with the reset function (here, and the client's implementation)
       // request the deviceId to be reset
       // ... this minimizes malicious attempts to re-use a deviceId
       //     when they have access to the browser's localStorage
@@ -640,13 +635,13 @@ export async function preAuthenticate(socket) {
       user = createUser();
 
       // attempt to authenticate from saved client credentials ... if any (i.e. an auth token)
-      // ?? AI: I think I want to NIX deviceIdFromToken
+      // AI: ??111 I think I want to NIX deviceIdFromToken - ONLY used in commented out code (below)
       const token = await getAuthTokenFromClient(socket); // email/guestName/deviceId
       if (token) {
         const {email: emailFromToken, guestName: guestNameFromToken, deviceId: deviceIdFromToken} = decodeUserToken(token);
         log(`client token: `, {email: emailFromToken, guestName: guestNameFromToken, deviceId: deviceIdFromToken});
 
-        // ?? AI: I think I want to NIX deviceIdFromToken
+        // AI: ??111 I think I want to NIX deviceIdFromToken
         //? //        it is a lame check ... if the user can access the localStorage token, they can just as easily access the localStorage deviceId
         //? // if the deviceId matches, we accept the credentials of the token
         //? // ... otherwise we ignore the token and start out as a Guest user
@@ -660,10 +655,12 @@ export async function preAuthenticate(socket) {
         //?   user.guestName = guestNameFromToken;
         //? }
 
-        // ?? RATHER DO THIS
         // we conditionally accept the token credentials
         // ... see comments (below)
         let acceptToken = false;
+        // ?? 555 regarding SUSPECT HACKER ... this could simply be moving laptop from one router to another ... may be too harsh
+        // ?? another reason to NOT change the token from preAuth
+        // ?? 666 consider sending message to user as to what happened in preAuth
         let logMsg      = `auth token "NOT" ACCEPTED for signed-in user (email: ${emailFromToken}), because they were NEVER previously authenticated on clientAccessIP: ${clientAccessIP} ... SUSPECT HACKER stole deviceId/token`;
         let logIt       = log.force;
         // when this token represents a signed-in user ... having a user account aspect (i.e. email)
@@ -716,7 +713,8 @@ export async function preAuthenticate(socket) {
     setupDeviceSocketRelationship(device, socket);
 
     // generate the token to be sent to our client
-    // ... we do this because our deviceId may have changed
+    // ... we do this because our deviceId may have changed ?? even if changed, do we really want preAuth to reflect this
+    // ??$$ 333 I'm thinking that NOW we do NOT change the token from preAuth ... can simply do this by NOT supplying token in sendPreAuthentication()
     const token = encodeUserToken(user, socket.data.deviceId);
 
     // communicate the pre-authentication to this client (socket)
