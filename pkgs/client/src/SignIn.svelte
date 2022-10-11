@@ -5,7 +5,7 @@
 
  // NOTE: We do not do anything fancy to preserve input values when we move off&back of the SignIn tab.
  //       - BECAUSE of the sensitive nature of sign-in data
- //         ... if we retained sign-in email/pass in module scope, 
+ //         ... if we retained sign-in email in module scope, 
  //             we would have to explicitly clear them on sign-out
  //             AND this screen is NOT even "in the mix" of a sign-out operation
  //       - ALSO, this screen is ONLY available when user is signed-out
@@ -14,17 +14,22 @@
  //           BECAUSE all other store values have been cleared on sign-out
 
  // our input state (bound to input controls)
- // ?? consider initializing these from our user store? ... IN a module state ?? unsure if we can use $user in a module scope?
- $:  email    = userName ? `${userName}@gmail.com` : '';  // ?? make this a real email field -and- populate user.name FROM server (TO client store) ... along with things like enablement.admin
- let userName = '';
- let pass     = '';
+ let guestName = $user.guestName;
+ // following convenience injects a default '@gmail.com' (temporary code for developer speed)
+ $:  email = email ? (email.includes('@') ? email : `${email}@gmail.com`) : '';
+ $:  buttonLabel = email ? 'Sign In' : 'Register';
  let signInMsg = '';
 
- let guestName = $user.guestName;
- let registerMsg = '';
-
- async function handleRegister() { // ?? OBSOLETE ... everything done in signin
-   // ?? do something
+ // following convenience is a bit hoaky (and temporary for developer speed) 
+ // but it resets the email cursor postion when we inject the default '@gmail.com'
+ let emailDOM;
+ $: {
+   if (email && email.indexOf('@') === 1) {
+     setTimeout( () => {
+       // emailDOM.focus();
+       emailDOM.setSelectionRange(1, 1);
+     }, 1);
+   }
  }
 
  async function handleSignIn() {
@@ -51,48 +56,36 @@
 
   <div class="indent">
 
-    <i>You are not required to sign-in to <b>visualize-it</b>.</i><br/><br/>
+    <i>You are <b>not required</b> to sign-in in order to use <b>visualize-it</b>.</i><br/><br/>
 
-    <b>Guest Registration:</b>
-    <div class="indent">
-      <i>
-        For "system participation" however, you must at minimum (when
-        not signed-in) supply a "Guest Name" (that identifies you to
-        other participants) ...
-      </i><br/><br/>
-      <form onsubmit="return false;">
-        <label>Guest Name: <input type="text" autocomplete="nickname" bind:value={guestName}/></label>
+    <form onsubmit="return false;">
+      <label>
+        <b>Guest Name:</b>
+        <input type="text" autocomplete="nickname" bind:value={guestName}/>
+        <i>
+          some <b>systems</b> require a <b>Guest Name</b> (when not signed-in), identifying you to other participants
+        </i>
+      </label>
 
-        <div class="error">{registerMsg}</div>
-
-        <button on:click={handleRegister} value="submit">Register</button>
-      </form>
-    </div><br/>
-
-    <b>Sign In:</b>
-    <div class="indent">
-      <i>
-        By signing in to <b>visualize-it</b>, you can perform more advanced features
-        (like publish packages) ...
-      </i><br/><br/>
-      <form onsubmit="return false;">
-        <label>Email:    <input type="text"     autocomplete="email"            bind:value={email} readonly/></label>
+      <label>
+        <b>Email:</b>
         <!-- svelte-ignore a11y-autofocus -->
-        <label>Name:     <input type="text"     autocomplete="nickname"         bind:value={userName} autofocus/></label>
-        <label>Password: <input type="password" autocomplete="current-password" bind:value={pass}/></label>
+        <input type="text" autocomplete="email" bind:value={email} bind:this={emailDOM} autofocus/>
+        <i>
+          signing in with a <b>verified email</b>, gives you access to <b>publish packages</b>
+        </i>
+      </label>
 
-        <div class="error">{signInMsg}</div>
-        
-        <button on:click={handleSignIn} value="submit">Sign In</button>
-      </form>
-    </div>
+      <div class="error">{signInMsg}</div>
+      <button on:click={handleSignIn} value="submit">{buttonLabel}</button>
+    </form>
 
   </div>
 </div>
 
 <style>
  .indent {
-   margin-left: 50px;
+   margin-left: 20px;
  }
  .error {
    color: red;
