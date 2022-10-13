@@ -111,6 +111,7 @@
     <b class="link" on:click={() => dispComp = Admin}>Admin</b>
   {/if}  
 
+  <!-- UserProfile icon -->
   &nbsp;&nbsp;&nbsp;
   &nbsp;&nbsp;&nbsp;
   &nbsp;&nbsp;&nbsp;
