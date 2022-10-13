@@ -8,15 +8,16 @@
  //*** Router.svelte ... a combination Header & Router
  //***
 
- import IDE       from './IDE.svelte';
- import System    from './System.svelte';
- import Chat      from './Chat.svelte';
- import Admin     from './Admin.svelte';
- import SignIn    from './SignIn.svelte';
- import user      from './user';
- import chat      from './chat';
- import alert     from './alert';
- import longpress from './util/longpress';
+ import IDE              from './IDE.svelte';
+ import System           from './System.svelte';
+ import Chat             from './Chat.svelte';
+ import Admin            from './Admin.svelte';
+ import SignIn           from './SignIn.svelte';
+ import UserProfileIcon  from './UserProfileIcon.svelte';
+ import user             from './user';
+ import chat             from './chat';
+ import alert            from './alert';
+ import longpress        from './util/longpress';
 
  // TODO: add some logging!
 
@@ -114,18 +115,7 @@
   &nbsp;&nbsp;&nbsp;
   &nbsp;&nbsp;&nbsp;
   &nbsp;&nbsp;&nbsp;
-  <b>User:</b>
-  {$user.getUserName()}
-
-  <!-- sign-in / sign-out link  -->
-  &nbsp;&nbsp;&nbsp;
-  {#if $user.isSignedIn()}
-    <b class="link" on:click={handleSignOut}>Sign Out</b>
-  {:else if dispComp === SignIn}
-    <b class="active">Sign In</b>
-  {:else}
-    <b class="link" on:click={handleSignIn}>Sign In</b>
-  {/if}
+  <UserProfileIcon {handleSignIn} {handleSignOut}/>
 
   <!-- alert message -->
   <div>
