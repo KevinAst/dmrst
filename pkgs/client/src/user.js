@@ -94,7 +94,7 @@ function createUser() {
 	return {
 		subscribe,
 
-    // sign-in user
+    // sign-in user (Phase I - request email verification to be sent)
     // RETURN: void <promise>
     // THROW:  Error with optional e.userMsg (when e.isExpected()) for expected user error (ex: invalid email)
     signIn: async (email, guestName) => {
@@ -104,10 +104,26 @@ function createUser() {
       // request our server to process request
       // ... allow Error to pass-through to client
       //     via SignIn.svelte invoker ... ex: invalid email
-      const {userState, token} = await signIn(email, guestName);
+      await signIn(email, guestName);
+
+      // that's all folks
+      alert.display(`A sign-in verification email has been sent to ${email}`);
+    },
+
+    // sign-in-verification of user (Phase II - verify email verification code)
+    // RETURN: void <promise>
+    // THROW:  Error with optional e.userMsg (when e.isExpected()) for expected user error (ex: invalid email)
+    signInVerification: async (verificationCode) => {
+
+      log(`signInVerification of user's email`);
+
+      // request our server to process request
+      // ... allow Error to pass-through to client
+      //     via SignIn.svelte invoker ... ex: invalid email
+      const {userState, token} = await signInVerification(verificationCode); // ??$$$ CREATE THIS
 
       // NOTE: subsequent steps represent successful sign-in (i.e. NO Error was thrown)
-      log(`successful signIn user with email: ${email} / guestName: ${guestName} ... userState: `, userState);
+      log(`successful signInVerification user with email: ${userState.email} / guestName: ${userState.guestName} ... userState: `, userState);
 
       // reflexively update our custom store to reflect this successful sign-in
       update(state => ({...state, ...userState}));
@@ -228,6 +244,17 @@ export function registerUserSocketHandlers(_socket) {
 }
 
 // convenience signIn utility wrapping the socket protocol with an async request/response
+// RETURN: void (PROMISE):
+// THROW:  Error with optional e.userMsg (when e.isExpected()) for expected user error (ex: invalid password)
+function signIn(email, pass) {
+  // promise wrapper of our socket message protocol
+  return new Promise((resolve, reject) => {
+    // issue the 'sign-in' socket request to our server
+    socket.emit('sign-in', email, pass, socketAckFn(resolve, reject));
+  });
+}
+
+// convenience signInVerification utility wrapping the socket protocol with an async request/response
 // RETURN: auth structure (PROMISE):
 //           {
 //             email: string,
@@ -237,11 +264,11 @@ export function registerUserSocketHandlers(_socket) {
 //             },
 //           }
 // THROW:  Error with optional e.userMsg (when e.isExpected()) for expected user error (ex: invalid password)
-function signIn(email, pass) {
+function signInVerification(verificationCode) {
   // promise wrapper of our socket message protocol
   return new Promise((resolve, reject) => {
-    // issue the 'sign-in' socket request to our server
-    socket.emit('sign-in', email, pass, socketAckFn(resolve, reject));
+    // issue the 'sign-in-verification' socket request to our server
+    socket.emit('sign-in-verification', verificationCode, socketAckFn(resolve, reject));
   });
 }
 

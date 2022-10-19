@@ -16,7 +16,7 @@
 import {socketAckFn_timeout} from './core/util/socketIOUtils';
 import {prettyPrint}         from './util/prettyPrint';
 import {msgClient}           from './chat';
-
+import randomNumber          from 'random-number-csprng';
 import logger from './core/util/logger';
 const  logPrefix = 'vit:server:auth';
 const  log = logger(`${logPrefix}`);
@@ -39,14 +39,17 @@ export default function registerAuthHandlers(socket) {
 
   //*---------------------------------------------------------------------------
   //* handle client sign-in request (a request/response API)
+  //* RETURN: (via ack): void (i.e. a verification code has been emailed)
+  //* THROW:  Error (via ack) with optional e.userMsg (when e.isExpected()) for expected user error (ex: invalid email)
+  //*
+  //* OLD: BAD: still need something like this for guestName ... really need to break that out separately
   //* RETURN: (via ack):
   //*           {
   //*             userState, // to update client user object
   //*             token,     // to be retained on client (for preAuthenticate)
   //*           }
-  //* THROW:  Error (via ack) with optional e.userMsg (when e.isExpected()) for expected user error (ex: invalid email)
   //*---------------------------------------------------------------------------
-  socket.on('sign-in', (email, guestName, ack) => {
+  socket.on('sign-in', async (email, guestName, ack) => {
     const log = logger(`${logPrefix}:sign-in`);
     log(`Servicing 'sign-in' request/response on socket: ${socket.id}`);
 
@@ -70,14 +73,55 @@ export default function registerAuthHandlers(socket) {
     if (!email && !guestName) {
       return userErr('Either Email or Guest Name must be supplied (or both)');
     }
-    // AI: eventually we will do 2nd phase to supply an email verification code
-    //     ... for sign-in with an email account (guests are accepted unconditionally)
-    //? if (!pass) {
-    //?   return userErr('password must be supplied');
-    //? }
-    //? if (pass !== 'b') {
-    //?   return userErr('invalid password ... try "b"');
-    //? }
+
+    // send email to user with verification code
+    await sendEmailVerificationCode(socket, email, guestName);
+
+    // acknowledge success (i.e. a verification code has been emailed)
+    return ack();
+
+  });
+
+  //*---------------------------------------------------------------------------
+  //* handle client sign-in verification request (a request/response API)
+  //* RETURN: (via ack):
+  //*           {
+  //*             userState, // to update client user object
+  //*             token,     // to be retained on client (for preAuthenticate)
+  //*           }
+  //* THROW:  Error (via ack) with optional e.userMsg (when e.isExpected()) for expected user error (ex: invalid email)
+  //*---------------------------------------------------------------------------
+  socket.on('sign-in-verification', (verificationCode, ack) => {
+    const log = logger(`${logPrefix}:sign-in-verification`);
+    log(`Servicing 'sign-in-verification' request/response on socket: ${socket.id}`);
+
+    // convenience util
+    function userErr(userMsg) {
+      log.v(userMsg)
+      ack({errMsg: '*** USER ERROR *** in "sign-in" event',
+           userMsg});
+      }
+
+    // insure the verificationCode has been supplied
+    if (!verificationCode) {
+      return userErr('the Verification Code must be supplied');
+    }
+    // insure the sign-in period has NOT expired
+    // ... technically, the client should NOT allow this (just for good measure)
+    if (!socket.data.verification) {
+      return userErr(`the sign-in verification time has expired ... please cancel and sign-in again`);
+    }
+    // limit the number of verification attempts to 10
+    socket.data.verification.attempts++;
+    if (socket.data.verification.attempts > 10) {
+      clearSignInVerification(socket);
+      return userErr(`you have exceeded the maximum number of verification attempts ... please cancel and sign-in again`);
+    }
+    
+    // verify the correct code has been supplied
+    if (verificationCode !== socket.data.verification.code) {
+      return userErr(`invalid Verification Code: ${verificationCode} ... try: ${socket.data.verification.code}`); // AI: VERY TEMP MSG :-)
+    }
 
     // KEY: user sign-in successful - NOW update our server state
 
@@ -85,8 +129,11 @@ export default function registerAuthHandlers(socket) {
     // ... NOTE: our basic socket/device/user structure is pre-established via preAuthenticate()
     // ... NOTE: we mutate this object :-)
     const user = getUser(socket);
-    user.email     = email;
-    user.guestName = guestName;
+    user.email     = socket.data.verification.email;
+    user.guestName = socket.data.verification.guestName;
+
+    // clear the verification info found in our socket
+    clearSignInVerification(socket);
 
     // re-populate all other user state (via user profile / enablements)
     populateUserProfile(user);
@@ -192,6 +239,72 @@ function isEmailAuthenticatedOnIP(email, clientAccessIP) {
 
 // AI: ?? 444 must implement API to maintain: email/clientAccessIPs
 
+
+//*---------------------------------------------------------
+//* Generate and send verification code to the supplied email,
+//* retaining authentication info in the supplied socket.
+//* RETURN: void (promise)
+//*---------------------------------------------------------
+async function sendEmailVerificationCode(socket, email, guestName) {
+
+  // generate verification code
+  // ... see: https://blog.logrocket.com/building-random-number-generator-javascript-nodejs/
+  //          Generate Cryptographically Secure Pseudo-Random Numbers
+  //          https://www.npmjs.com/package/random-number-csprng
+  //          $ npm install --save random-number-csprng
+  const verificationCode = await randomNumber(100000, 999999) + '' /* convert to string for easy comparison */;
+  // log(`verificationCode: ${verificationCode}`); // NO NO: info is too sensitive
+
+  // expire in 5 mins
+  const timeout = 1 * 60 * 1000; // AI: change this to 5 mins
+  const timeoutID = setTimeout(() => {
+    clearSignInVerification(socket);
+  }, timeout);
+
+  // AI: send verification code to the supplied email address
+
+  // retain authentication info in the supplied socket
+  socket.data.verification = {
+    code:       verificationCode,
+    attempts:   0,
+    timeoutID,
+    email,
+    guestName,
+  };
+}
+
+
+//*---------------------------------------------------------
+//* Clear out the sign-in verification info found in the supplied socket
+//* 
+//* There are three contexts in which this function "could" be invoked:
+//* 
+//*  1. successful verification <<< this clear function IS invoked
+//*     Here the client SignIn screen will explicitly reset itself
+//* 
+//*  2. user cancels the sign-in verification <<< this clear function IS NOT invoked
+//*     Here the client SignIn screen will explicitly reset itself.
+//*     We use the KISS principle, and do NOT notify the server,
+//*     as it will automatically expire in a short time.
+//* 
+//*  3. sign-in verification expires <<< this clear function IS invoked
+//*     Here the clear function is invoked BY a server-initiated process (via timeout).
+//*     We employ a KISS principle, and DO NOT notify the client.
+//*     The client will discover this when they attempt to verify,
+//*     and the user can explicitly cancel the operation.
+//*     WE CHOSE THIS PATH, because there is NO "clean" way for our SignIn.svelte
+//*     to receive a socket notification of this expiration.
+//* 
+//* RETURN: void
+//*---------------------------------------------------------
+function clearSignInVerification(socket) {
+  // clear out socket.data.verification
+  // ... indicating that we are NO LONGER in a sign-in verification phase
+  if (socket.data.verification) {
+    clearTimeout(socket.data.verification.timeoutID);
+    socket.data.verification = null;
+  }
+}
 
 
 //******************************************************************************
