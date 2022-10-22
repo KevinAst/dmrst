@@ -13,6 +13,7 @@
  *      Device (user) --1:M--< Socket (browser windows) with back-ref socket.data.deviceIdFull
  */
 
+import sendGridMail          from '@sendgrid/mail';
 import {socketAckFn_timeout} from './core/util/socketIOUtils';
 import {prettyPrint}         from './util/prettyPrint';
 import {msgClient}           from './chat';
@@ -75,7 +76,18 @@ export default function registerAuthHandlers(socket) {
     }
 
     // send email to user with verification code
-    await sendEmailVerificationCode(socket, email, guestName);
+    try {
+      await sendEmailVerificationCode(socket, email, guestName);
+    }
+    catch(e) {
+      log.f(`*** ERROR *** Problem sending email verification code`, e);
+      if (e.response) {
+        log.f(`response: `, e.response.body)
+      }
+      ack({
+        errMsg: `Unexpected condition in sending email verification code ... ${e}`,
+      });
+    }
 
     // acknowledge success (i.e. a verification code has been emailed)
     return ack();
@@ -106,21 +118,29 @@ export default function registerAuthHandlers(socket) {
     if (!verificationCode) {
       return userErr('the Verification Code must be supplied');
     }
+
     // insure the sign-in period has NOT expired
     // ... technically, the client should NOT allow this (just for good measure)
     if (!socket.data.verification) {
       return userErr(`the sign-in verification time has expired ... please cancel and sign-in again`);
     }
+
     // limit the number of verification attempts to 10
     socket.data.verification.attempts++;
     if (socket.data.verification.attempts > 10) {
       clearSignInVerification(socket);
       return userErr(`you have exceeded the maximum number of verification attempts ... please cancel and sign-in again`);
     }
-    
+
+    // VERY TEMP DEV PROCESS that reveals the code
+    // ?? IMPORT: REMOVE THIS
+    if (verificationCode === 'showme') {
+      return userErr(`try: ${socket.data.verification.code}`);
+    }
+
     // verify the correct code has been supplied
     if (verificationCode !== socket.data.verification.code) {
-      return userErr(`invalid Verification Code: ${verificationCode} ... try: ${socket.data.verification.code}`); // AI: VERY TEMP MSG :-)
+      return userErr(`invalid Verification Code`);
     }
 
     // KEY: user sign-in successful - NOW update our server state
@@ -240,10 +260,13 @@ function isEmailAuthenticatedOnIP(email, clientAccessIP) {
 // AI: ?? 444 must implement API to maintain: email/clientAccessIPs
 
 
+let registeredEmailKey = false;
+
 //*---------------------------------------------------------
 //* Generate and send verification code to the supplied email,
 //* retaining authentication info in the supplied socket.
 //* RETURN: void (promise)
+//* ERROR:  via (promise) - unsuccessful operation (to be handled by invoker)
 //*---------------------------------------------------------
 async function sendEmailVerificationCode(socket, email, guestName) {
 
@@ -255,13 +278,34 @@ async function sendEmailVerificationCode(socket, email, guestName) {
   const verificationCode = await randomNumber(100000, 999999) + '' /* convert to string for easy comparison */;
   // log(`verificationCode: ${verificationCode}`); // NO NO: info is too sensitive
 
-  // expire in 5 mins
-  const timeout = 1 * 60 * 1000; // AI: change this to 5 mins
+  // email verification code to the supplied email address
+  // ... register our API key to the service object
+  //     done one time only
+  //     done late (here) to insure our process.env has been resolved
+  if (!registeredEmailKey) {
+    sendGridMail.setApiKey(process.env.EMAIL_API_KEY);
+    registeredEmailKey = true;
+  }
+  // ... define our message to be email
+  const emailContent = {
+    to:      email,
+    from:    'kevin@appliedsofttech.com', // AI: use the email address or domain you verified with SendGrid
+    subject: 'Verification Code from visualize-it',
+    text:    `You have requested to access a visualize-it account through this email address\n\n` +
+             `To complete this process, enter the code below in your visualize-it verification screen:\n\n ${verificationCode}\n\n` +
+             `This code will expire after 10 minutes.\n\n` +
+             `Didn't request this code from visualize-it?  Someone may be attempting to use your email address as an account identifier.\n\n` +
+             `This is a system generated email. Replies will not be read or forwarded for handling.`,
+  };
+  // ... send the email
+  //     ANY ERROR should be handled by our invoker
+  await sendGridMail.send(emailContent);
+
+  // expire verification code in 5 mins
+  const timeout = 1 * 60 * 1000; // ?? change this to 5 mins
   const timeoutID = setTimeout(() => {
     clearSignInVerification(socket);
   }, timeout);
-
-  // AI: send verification code to the supplied email address
 
   // retain authentication info in the supplied socket
   socket.data.verification = {

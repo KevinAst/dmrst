@@ -4,12 +4,15 @@
 
 import './core/util/ErrorExtensionPolyfill'; // value-added Error extensions, providing ability to handle ALL errors more generically
 
-import logger from './core/util/logger';
-const  log = logger('vit:server:main');
+import * as dotenv from 'dotenv'; // configure our process.env via .env files (in DEV only ... PROD uses standard heroku configuration
+dotenv.config();                  // ... per dotenv sample, HOWEVER DOES NOT execute before subsequent imports :-(
 
 import http                from 'http';
 import express             from 'express';
 import {initializeSockets} from './sockets.js'
+
+import logger from './core/util/logger';
+const  log = logger('vit:server:main');
 
 // define our express app
 const expressApp = express();
