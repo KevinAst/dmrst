@@ -19,7 +19,7 @@
  import logger   from './core/util/logger';
  const  log      = logger('vit:client:SignIn');
 
- // NOTE: We do not do anything fancy to preserve input values when we move off&back of the SignIn tab.
+ // NOTE: We do not do anything fancy to preserve input values when we move off&back of the SignIn tab. ??$$$ re-look at this once we pull our verificationPhase state from user store
  //       - BECAUSE of the sensitive nature of sign-in data
  //         ... if we retained sign-in email in module scope, 
  //             we would have to explicitly clear them on sign-out
@@ -41,7 +41,6 @@
  });
 
  // our input state (bound to input controls)
- let guestName = $user.guestName;
  // following convenience injects a default '@gmail.com' (temporary code for developer speed)
  $:  email = email ? (email.includes('@') ? email : `${email}@gmail.com`) : '';
  $:  buttonLabel = email ? 'Sign In' : 'Register';
@@ -61,7 +60,7 @@
 
  async function handleSignIn() {
    try {
-     await user.signIn(email, guestName);
+     await user.signIn(email);
      signInMsg = ''; // ... clear any prior message
 
      // transition this component into a verification phase
@@ -148,22 +147,13 @@
 
     <i>You are <b>not required</b> to sign-in in order to use <b>visualize-it</b>.</i><br/><br/>
 
-    <form onsubmit="return false;">
-      <label>
-        <b>Guest Name:</b>
-        <input type="text" autocomplete="nickname" bind:value={guestName}/>
-        <i>
-          some <b>systems</b> require a <b>Guest Name</b> (when not signed-in), identifying you to other participants
-        </i>
-      </label>
+    <i>However, signing in with a <b>verified email</b>, gives you access to <b>publish packages</b>!</i><br/><br/>
 
+    <form onsubmit="return false;">
       <label>
         <b>Email:</b>
         <!-- svelte-ignore a11y-autofocus -->
         <input type="text" autocomplete="email" bind:value={email} bind:this={emailDOM} autofocus/>
-        <i>
-          signing in with a <b>verified email</b>, gives you access to <b>publish packages</b>
-        </i>
       </label>
 
       <div class="error">{signInMsg}</div>

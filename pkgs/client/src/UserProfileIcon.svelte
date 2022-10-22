@@ -4,8 +4,9 @@
  import user   from './user';
  import alert  from './alert';
 
- export let handleSignIn;     // PROP: the function to invoke for sign-in
- export let handleSignOut;    // PROP: the function to invoke for sign-out
+ export let handleSignIn;        // PROP: the function to invoke for sign-in
+ export let handleSignOut;       // PROP: the function to invoke for sign-out
+ export let handleRegisterGuest; // PROP: the function to invoke for register-guest
 
  let userDropdown;
  let showUserDropdown = false;
@@ -29,6 +30,7 @@
        <a on:click={() => alert.display('User Profile will be implemented LATER')}>Profile</a>
        <a on:click={handleSignOut}>Sign Out</a>
     {:else}
+       <a on:click={handleRegisterGuest}>Register Guest</a>
        <a on:click={handleSignIn}>Sign In</a>
     {/if}
   </div>

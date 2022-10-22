@@ -94,17 +94,40 @@ function createUser() {
 	return {
 		subscribe,
 
+    // register a guest user
+    // RETURN: void <promise>
+    // THROW:  Error with optional e.userMsg (when e.isExpected()) for expected user error (ex: invalid email)
+    registerGuest: async (guestName) => {
+      log(`registerGuest with guestName: ${guestName}`);
+
+      // request our server to process request
+      // ... allow Error to pass-through to client
+      //     via RegisterGuest.svelte invoker ... ex: invalid guest name
+      const {userState, token} = await registerGuest(guestName);
+
+      // NOTE: subsequent steps represent successful sign-in (i.e. NO Error was thrown)
+      log(`successful guest registration with guestName: ${userState.guestName} ... userState: `, userState);
+
+      // reflexively update our custom store to reflect this successful sign-in
+      update(state => ({...state, ...userState}));
+
+      // retain sign-in token (in support of auto-authentication)
+      localStorage.setItem('token', token);
+
+      // that's all folks
+      alert.display(`Welcome ${get(user).getUserName()} :-)`);
+    },
+
     // sign-in user (Phase I - request email verification to be sent)
     // RETURN: void <promise>
     // THROW:  Error with optional e.userMsg (when e.isExpected()) for expected user error (ex: invalid email)
-    signIn: async (email, guestName) => {
-
+    signIn: async (email) => {
       log(`signIn user with email: ${email}`);
 
       // request our server to process request
       // ... allow Error to pass-through to client
       //     via SignIn.svelte invoker ... ex: invalid email
-      await signIn(email, guestName);
+      await signIn(email);
 
       // that's all folks
       alert.display(`A sign-in verification email has been sent to ${email}`);
@@ -114,16 +137,15 @@ function createUser() {
     // RETURN: void <promise>
     // THROW:  Error with optional e.userMsg (when e.isExpected()) for expected user error (ex: invalid email)
     signInVerification: async (verificationCode) => {
-
       log(`signInVerification of user's email`);
 
       // request our server to process request
       // ... allow Error to pass-through to client
       //     via SignIn.svelte invoker ... ex: invalid email
-      const {userState, token} = await signInVerification(verificationCode); // ??$$$ CREATE THIS
+      const {userState, token} = await signInVerification(verificationCode);
 
       // NOTE: subsequent steps represent successful sign-in (i.e. NO Error was thrown)
-      log(`successful signInVerification user with email: ${userState.email} / guestName: ${userState.guestName} ... userState: `, userState);
+      log(`successful signInVerification user with email: ${userState.email} ... userState: `, userState);
 
       // reflexively update our custom store to reflect this successful sign-in
       update(state => ({...state, ...userState}));
@@ -139,7 +161,6 @@ function createUser() {
     // RETURN: void <promise>
     // THROW:  Error with optional e.userMsg (when e.isExpected()) for expected user error (ex: not signed in)
     signOut: async () => {
-
       log(`signOut user`);
 
       // request our server to process request
@@ -243,14 +264,25 @@ export function registerUserSocketHandlers(_socket) {
   });
 }
 
+// convenience registerGuest utility wrapping the socket protocol with an async request/response
+// RETURN: void (PROMISE):
+// THROW:  Error with optional e.userMsg (when e.isExpected()) for expected user error (ex: invalid guestName)
+function registerGuest(guestName) {
+  // promise wrapper of our socket message protocol
+  return new Promise((resolve, reject) => {
+    // issue the 'register-guest' socket request to our server
+    socket.emit('register-guest', guestName, socketAckFn(resolve, reject));
+  });
+}
+
 // convenience signIn utility wrapping the socket protocol with an async request/response
 // RETURN: void (PROMISE):
-// THROW:  Error with optional e.userMsg (when e.isExpected()) for expected user error (ex: invalid password)
-function signIn(email, pass) {
+// THROW:  Error with optional e.userMsg (when e.isExpected()) for expected user error (ex: invalid email)
+function signIn(email) {
   // promise wrapper of our socket message protocol
   return new Promise((resolve, reject) => {
     // issue the 'sign-in' socket request to our server
-    socket.emit('sign-in', email, pass, socketAckFn(resolve, reject));
+    socket.emit('sign-in', email, socketAckFn(resolve, reject));
   });
 }
 
@@ -263,7 +295,7 @@ function signIn(email, pass) {
 //               admin: boolean,
 //             },
 //           }
-// THROW:  Error with optional e.userMsg (when e.isExpected()) for expected user error (ex: invalid password)
+// THROW:  Error with optional e.userMsg (when e.isExpected()) for expected user error (ex: invalid verification code)
 function signInVerification(verificationCode) {
   // promise wrapper of our socket message protocol
   return new Promise((resolve, reject) => {
@@ -281,7 +313,7 @@ function signInVerification(verificationCode) {
 //               admin: false,
 //             },
 //           }
-// THROW:  Error with optional e.userMsg (when e.isExpected()) for expected user error (ex: invalid password)
+// THROW:  Error with optional e.userMsg (when e.isExpected()) for expected user error (ex: not signed in)
 function signOut() {
   // promise wrapper of our socket message protocol
   return new Promise((resolve, reject) => {

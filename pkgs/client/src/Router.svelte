@@ -13,6 +13,7 @@
  import Chat             from './Chat.svelte';
  import Admin            from './Admin.svelte';
  import SignIn           from './SignIn.svelte';
+ import RegisterGuest    from './RegisterGuest.svelte';
  import UserProfileIcon  from './UserProfileIcon.svelte';
  import user             from './user';
  import chat             from './chat';
@@ -26,7 +27,7 @@
  $: { // ... some reflexive routing logic
 
    // reflexively move OFF the SignIn screen, once user has successfully signed-in
-   if ($user.isSignedIn() && dispComp === SignIn) {
+   if (dispComp === SignIn && $user.isSignedIn()) {
      dispComp = IDE;
    }
 
@@ -42,6 +43,10 @@
 
  function handleSignIn() {
    dispComp = SignIn; // display sign-in screen
+ }
+
+ function handleRegisterGuest() {
+   dispComp = RegisterGuest; // display register-guest screen
  }
 
  async function handleSignOut() {
@@ -116,7 +121,7 @@
   &nbsp;&nbsp;&nbsp;
   &nbsp;&nbsp;&nbsp;
   &nbsp;&nbsp;&nbsp;
-  <UserProfileIcon {handleSignIn} {handleSignOut}/>
+  <UserProfileIcon {handleSignIn} {handleSignOut} {handleRegisterGuest}/>
 
   <!-- alert message -->
   <div>

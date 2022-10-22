@@ -39,18 +39,66 @@ export default function registerAuthHandlers(socket) {
   }
 
   //*---------------------------------------------------------------------------
-  //* handle client sign-in request (a request/response API)
-  //* RETURN: (via ack): void (i.e. a verification code has been emailed)
-  //* THROW:  Error (via ack) with optional e.userMsg (when e.isExpected()) for expected user error (ex: invalid email)
-  //*
-  //* OLD: BAD: still need something like this for guestName ... really need to break that out separately
+  //* handle client register-guest request (a request/response API)
   //* RETURN: (via ack):
   //*           {
   //*             userState, // to update client user object
   //*             token,     // to be retained on client (for preAuthenticate)
   //*           }
+  //* THROW:  Error (via ack) with optional e.userMsg (when e.isExpected()) for expected user error (ex: invalid guestName)
   //*---------------------------------------------------------------------------
-  socket.on('sign-in', async (email, guestName, ack) => {
+  socket.on('register-guest', async (guestName, ack) => {
+    const log = logger(`${logPrefix}:register-guest`);
+    log(`Servicing 'register-guest' request/response on socket: ${socket.id}`);
+
+    // convenience util
+    function userErr(userMsg) {
+      log.v(userMsg)
+      ack({errMsg: '*** USER ERROR *** in "register-guest" event',
+           userMsg});
+    }
+
+    // currently we allow blank entry to clear any prior guest name
+    // if (!guestName) {
+    //   return userErr('Guest Name must be supplied');
+    // }
+
+    // KEY: user register-guest successful - NOW update our server state
+
+    // obtain the user associated to this socket -AND- update it's key aspects
+    // ... NOTE: our basic socket/device/user structure is pre-established via preAuthenticate()
+    // ... NOTE: we mutate this object :-)
+    const user     = getUser(socket);
+    user.guestName = guestName;
+
+    // re-populate all other user state (via user profile / enablements)
+    populateUserProfile(user);
+
+    // broadcast the latest userState to all clients of this device
+    // ... this will change the user/authentication for ALL apps running on this device (all app windows of this browser instance)
+    const userState = extractUserState(user);
+    broadcastUserAuthChanged(socket, userState);
+
+    // generate the token to be sent to our client
+    const token = encodeUserToken(user, socket.data.deviceId);
+
+    // acknowledge success
+    // ... for the initiating client, this is how it is updated
+    //     >>> it knows to update localStorage too
+    // ... for other clients of this device, they are updated via the broadcast event (above)
+    return ack({value: {
+      userState,
+      token,
+    }});
+
+  });
+
+  //*---------------------------------------------------------------------------
+  //* handle client sign-in request (a request/response API)
+  //* RETURN: (via ack): void (i.e. a verification code has been emailed)
+  //* THROW:  Error (via ack) with optional e.userMsg (when e.isExpected()) for expected user error (ex: invalid email)
+  //*---------------------------------------------------------------------------
+  socket.on('sign-in', async (email, ack) => {
     const log = logger(`${logPrefix}:sign-in`);
     log(`Servicing 'sign-in' request/response on socket: ${socket.id}`);
 
@@ -68,16 +116,16 @@ export default function registerAuthHandlers(socket) {
     }
 
     // validate request params
-    if (email && !validEmail(email)) {
-      return userErr('Email is invalid');
+    if (!email) {
+      return userErr('email must be supplied');
     }
-    if (!email && !guestName) {
-      return userErr('Either Email or Guest Name must be supplied (or both)');
+    if (!validEmail(email)) {
+      return userErr('Email is invalid');
     }
 
     // send email to user with verification code
     try {
-      await sendEmailVerificationCode(socket, email, guestName);
+      await sendEmailVerificationCode(socket, email);
     }
     catch(e) {
       log.f(`*** ERROR *** Problem sending email verification code`, e);
@@ -91,7 +139,6 @@ export default function registerAuthHandlers(socket) {
 
     // acknowledge success (i.e. a verification code has been emailed)
     return ack();
-
   });
 
   //*---------------------------------------------------------------------------
@@ -133,7 +180,7 @@ export default function registerAuthHandlers(socket) {
     }
 
     // VERY TEMP DEV PROCESS that reveals the code
-    // ?? IMPORT: REMOVE THIS
+    // ?? IMPORTANT: REMOVE THIS
     if (verificationCode === 'showme') {
       return userErr(`try: ${socket.data.verification.code}`);
     }
@@ -149,8 +196,7 @@ export default function registerAuthHandlers(socket) {
     // ... NOTE: our basic socket/device/user structure is pre-established via preAuthenticate()
     // ... NOTE: we mutate this object :-)
     const user = getUser(socket);
-    user.email     = socket.data.verification.email;
-    user.guestName = socket.data.verification.guestName;
+    user.email = socket.data.verification.email;
 
     // clear the verification info found in our socket
     clearSignInVerification(socket);
@@ -268,7 +314,7 @@ let registeredEmailKey = false;
 //* RETURN: void (promise)
 //* ERROR:  via (promise) - unsuccessful operation (to be handled by invoker)
 //*---------------------------------------------------------
-async function sendEmailVerificationCode(socket, email, guestName) {
+async function sendEmailVerificationCode(socket, email) {
 
   // generate verification code
   // ... see: https://blog.logrocket.com/building-random-number-generator-javascript-nodejs/
@@ -299,7 +345,7 @@ async function sendEmailVerificationCode(socket, email, guestName) {
   };
   // ... send the email
   //     ANY ERROR should be handled by our invoker
-  await sendGridMail.send(emailContent);
+  //? await sendGridMail.send(emailContent); // AI: for now just rely on "showme" to minimize email traffic in DEV
 
   // expire verification code in 5 mins
   const timeout = 1 * 60 * 1000; // ?? change this to 5 mins
@@ -313,7 +359,6 @@ async function sendEmailVerificationCode(socket, email, guestName) {
     attempts:   0,
     timeoutID,
     email,
-    guestName,
   };
 }
 
