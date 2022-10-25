@@ -1,5 +1,5 @@
 <script>
- import user from './user';
+ import user from './auth/user';
 </script>
 
 <div>

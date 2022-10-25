@@ -1,7 +1,7 @@
 <script>
  import user     from './user';
- import logger   from './core/util/logger';
- const  log      = logger('vit:client:SignIn');
+ import logger   from '../core/util/logger';
+ const  log = logger('vit:client:SignIn');
 
  // NOTE: We do not do anything fancy to preserve input values when we move off & back of the SignIn tab.
  //       - BECAUSE of the sensitive nature of sign-in data

@@ -1,8 +1,3 @@
-<script context="module">
- import logger from './core/util/logger';
- const  log = logger('vit:client:Router');
-</script>
-
 <script>
  //***
  //*** Router.svelte ... a combination Header & Router
@@ -12,13 +7,15 @@
  import System           from './System.svelte';
  import Chat             from './Chat.svelte';
  import Admin            from './Admin.svelte';
- import SignIn           from './SignIn.svelte';
- import RegisterGuest    from './RegisterGuest.svelte';
- import UserProfileIcon  from './UserProfileIcon.svelte';
- import user             from './user';
+ import SignIn           from './auth/SignIn.svelte';
+ import RegisterGuest    from './auth/RegisterGuest.svelte';
+ import UserProfileIcon  from './auth/UserProfileIcon.svelte';
+ import user             from './auth/user';
  import chat             from './chat';
  import alert            from './alert';
  import longpress        from './util/longpress';
+ import logger           from './core/util/logger';
+ const  log = logger('vit:client:Router');
 
  // TODO: add some logging!
 

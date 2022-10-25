@@ -3,13 +3,13 @@
 //***
 
 import io                                    from "socket.io-client";
-import {registerUserSocketHandlers}          from './user';
+import {registerUserSocketHandlers}          from './auth/user';
 import {registerChatSocketHandlers}          from './chat';
 import {registerSystemStoreSocketHandlers}   from './system';
 import {registerSystemSocketHandlers}        from './systemIO';
 import {registerLogFilterSocketHandlers}     from './core/util/logger/filterLogsIOClient';
 import {isDev}                               from './util/env';
-import user                                  from './user';
+import user                                  from './auth/user';
 import alert                                 from './alert';
 
 import logger from './core/util/logger';

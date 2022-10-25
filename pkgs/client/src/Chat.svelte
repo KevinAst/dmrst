@@ -2,7 +2,7 @@
  import {onDestroy}         from 'svelte';
  import ChatSessionSelector from './ChatSessionSelector.svelte';
  import chat                from './chat';
- import user                from './user';
+ import user                from './auth/user';
  import logger              from './core/util/logger';
  const  log = logger('vit:client:Chat');
 

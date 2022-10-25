@@ -1,7 +1,7 @@
 <script>
  import user     from './user';
- import logger   from './core/util/logger';
- const  log      = logger('vit:client:RegisterGuest');
+ import logger   from '../core/util/logger';
+ const  log = logger('vit:client:RegisterGuest');
 
  // our input state (bound to input controls)
  let guestName = $user.guestName;
