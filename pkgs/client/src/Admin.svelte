@@ -1,7 +1,7 @@
 <script context="module">
- import chat                   from './chat';
- import ChatSessionSelector    from './ChatSessionSelector.svelte';
- import {createStateRetention} from './ChatSessionSelector.svelte';
+ import chat                   from './chat/chat';
+ import ChatSessionSelector    from './chat/ChatSessionSelector.svelte';
+ import {createStateRetention} from './chat/ChatSessionSelector.svelte';
  import FilterLogs             from './core/util/logger/FilterLogs.svelte';
 
  // stateRetention: retains component state when destroyed/re-instantiated

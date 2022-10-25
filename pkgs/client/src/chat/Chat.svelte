@@ -2,8 +2,8 @@
  import {onDestroy}         from 'svelte';
  import ChatSessionSelector from './ChatSessionSelector.svelte';
  import chat                from './chat';
- import user                from './auth/user';
- import logger              from './core/util/logger';
+ import user                from '../auth/user';
+ import logger              from '../core/util/logger';
  const  log = logger('vit:client:Chat');
 
  // module-scoped retention of state (when component is destroyed)

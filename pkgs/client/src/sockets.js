@@ -4,7 +4,7 @@
 
 import io                                    from "socket.io-client";
 import {registerUserSocketHandlers}          from './auth/user';
-import {registerChatSocketHandlers}          from './chat';
+import {registerChatSocketHandlers}          from './chat/chat';
 import {registerSystemStoreSocketHandlers}   from './sys/system';
 import {registerSystemSocketHandlers}        from './sys/systemIO';
 import {registerLogFilterSocketHandlers}     from './core/util/logger/filterLogsIOClient';

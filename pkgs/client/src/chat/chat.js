@@ -4,9 +4,9 @@
 //***
 
 import {writable, get} from 'svelte/store';
-import alert      from './alert';
-import beep       from './util/beep';
-import logger     from './core/util/logger';
+import alert      from '../alert';
+import beep       from '../util/beep';
+import logger     from '../core/util/logger';
 const  log = logger('vit:client:chat');
 
 // the store "session" structure (one for each session)
