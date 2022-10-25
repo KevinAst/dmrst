@@ -2,9 +2,9 @@
 //*** systemIO.js ... WebSocket bindings of visualize-it system (client-side)
 //***
 
-import {socketAckFn} from './core/util/socketIOUtils';
+import {socketAckFn} from '../core/util/socketIOUtils';
 
-import logger from './core/util/logger';
+import logger from '../core/util/logger';
 const  log = logger('vit:client:systemIO'); 
 
 let socket;  // our active socket (to be used in this module)

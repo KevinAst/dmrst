@@ -8,9 +8,9 @@ import {launchSystem as launchSystemIO} from './systemIO';
 import {joinSystem as joinSystemIO}     from './systemIO';
 import {runSystem as runSystemIO}       from './systemIO';
 import {pauseSystem as pauseSystemIO}   from './systemIO';
-import alert                            from './alert';
-import user                             from './auth/user';
-import logger                           from './core/util/logger';
+import alert                            from '../alert';
+import user                             from '../auth/user';
+import logger                           from '../core/util/logger';
 const  log = logger('vit:client:system');
 
 

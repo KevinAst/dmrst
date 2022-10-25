@@ -1,8 +1,8 @@
 <script>
  import {joinSystem} from './system';
 
- import alert  from './alert';
- import logger from './core/util/logger';
+ import alert  from '../alert';
+ import logger from '../core/util/logger';
  const  log =  logger('vit:client:SystemJoin');
 
  export let newSystemIntroduced; // PROP: communicate new system introduced (either through "launch" or "join") API: newSystemIntroduced(sysId)

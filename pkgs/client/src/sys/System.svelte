@@ -5,7 +5,7 @@
  import SystemSelector           from './SystemSelector.svelte';
  import {createStateRetention}   from './SystemSelector.svelte';
  import SystemDisplay            from './SystemDisplay.svelte';
- import logger                   from './core/util/logger';
+ import logger                   from '../core/util/logger';
  const  log = logger('vit:client:System');
 
  // retain the selected system IN module-scoped context (when destroyed/re-instantiated)

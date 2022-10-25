@@ -1,7 +1,7 @@
 <script>
  import {runSystem, pauseSystem} from './system';
- import logger  from './core/util/logger';
- const  log   = logger('vit:client:SystemDisplay');
+ import logger  from '../core/util/logger';
+ const  log = logger('vit:client:SystemDisplay');
 
  export let system;    // PROP: the system to display
 

@@ -1,9 +1,9 @@
 <script>
  import UserProfileIcon  from './auth/UserProfileIcon.svelte';
- import SystemDisplay    from './SystemDisplay.svelte';
+ import SystemDisplay    from './sys/SystemDisplay.svelte';
  import SignIn           from './auth/SignIn.svelte';
  import RegisterGuest    from './auth/RegisterGuest.svelte';
- import {joinSystem}     from './system';
+ import {joinSystem}     from './sys/system';
  import user             from './auth/user';
  import alert            from './alert';
  import logger           from './core/util/logger';

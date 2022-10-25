@@ -1,8 +1,8 @@
 <script>
  import {launchSystem} from './system';
 
- import alert  from './alert';
- import logger from './core/util/logger';
+ import alert  from '../alert';
+ import logger from '../core/util/logger';
  const  log =  logger('vit:client:SystemLaunch');
 
  export let newSystemIntroduced; // PROP: communicate new system introduced (either through "launch" or "join") API: newSystemIntroduced(sysId)

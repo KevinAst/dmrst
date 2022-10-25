@@ -4,7 +4,7 @@
  //***
 
  import IDE              from './IDE.svelte';
- import System           from './System.svelte';
+ import System           from './sys/System.svelte';
  import Chat             from './Chat.svelte';
  import Admin            from './Admin.svelte';
  import SignIn           from './auth/SignIn.svelte';
