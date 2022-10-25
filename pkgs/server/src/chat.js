@@ -47,7 +47,6 @@ export default function registerChatHandlers(socket) {
       const userName1 = getUserName(socketId1);
       const userName2 = getUserName(socketId2);
 
-
       // connection is technically managed by the client
       // ... communicating other socket.id to EACH client
       log(`connection request - connecting two parties ... socketIds ${socketId1}/${socketId2}`);

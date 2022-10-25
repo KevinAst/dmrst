@@ -68,8 +68,8 @@ function createChat() {
 
     // connect our chat with another user
     connect: (otherSocketId, userId, msg) => { // ... invoked by 'private-msg-connect' event (below)
-      // default params appropriatly
-      userId = userId || 'Guest';
+      // default params appropriately
+      userId = userId || 'Unknown';
       msg    = msg    || `Hello from ${userId}`;
 
       // connect our chat

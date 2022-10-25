@@ -535,7 +535,7 @@ function extractUserState(user) {
 
 
 //*-------------------------------------------------
-//* return the user associate to the supplied socket/device/deviceIdFull (one in the same).
+//* return the user associate to the supplied deviceIdFull|device|socket|socketId (one in the same).
 //* PARM:   ref: deviceIdFull | Device | socket
 //* RETURN: User ... undefined for NOT-FOUND
 //*-------------------------------------------------
@@ -545,7 +545,7 @@ export function getUser(ref) {
 
 
 //*-------------------------------------------------
-//* return the user name associate to the supplied socket/device/deviceIdFull (one in the same).
+//* return the user name associate to the supplied deviceIdFull|device|socket|socketId (one in the same).
 //* PARM:   ref: deviceIdFull | Device | socket
 //* RETURN: userName ... undefined for NOT-FOUND
 //*-------------------------------------------------
@@ -679,13 +679,18 @@ async function logAllDevices(msg='ALL DEVICES', myLog=log) {
 }
 
 //*-------------------------------------------------
-//* return the device associate to the supplied socket/device/deviceIdFull (one in the same).
+//* return the device associate to the supplied deviceIdFull|device|socket|socketId (one in the same).
 //* PARM:   ref: deviceIdFull | Device | socket
 //* RETURN: Device ... undefined for NOT-FOUND
 //*-------------------------------------------------
 export function getDevice(ref) {
   const deviceIdFull = ref?.data?.deviceIdFull /*socket*/ || ref?.deviceIdFull /*device*/ || ref /*deviceIdFull*/;
-  return devices.get(deviceIdFull);
+  let   device = devices.get(deviceIdFull);
+  if (!device) { // as a last resort, interpret ref as a socketId
+    const socket = io.sockets.sockets.get(ref);
+    device = devices.get(socket?.data?.deviceIdFull);
+  }
+  return device;
 }
 
 //*-------------------------------------------------
@@ -745,9 +750,9 @@ const deviceRoom = (deviceIdFull) => `device-${deviceIdFull}`;
  *    Device (user) --1:M--< Socket (browser windows) with back-ref socket.data.deviceIdFull
  *
  * Once complete, the following API is available:
- *   + getDevice(deviceIdFull|Device|socket):   Device
- *   + getUser(deviceIdFull|Device|socket):     User (same as: device.user)
- *   + getUserName(deviceIdFull|Device|socket): string
+ *   + getDevice(deviceIdFull|device|socket|socketId):   Device
+ *   + getUser(deviceIdFull|device|socket|socketId):     User (same as: device.user)
+ *   + getUserName(deviceIdFull|device|socket|socketId): string
  *********************************************************************************/
 export async function preAuthenticate(socket) {
 
