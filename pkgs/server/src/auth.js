@@ -26,9 +26,7 @@ const  log = logger(`${logPrefix}`);
 let io = null;
 
 // register our SendGrid API key to the service object
-// ??$$$ NEW:
-log.f(`????????????? EMAIL_API_KEY: ${process.env.EMAIL_API_KEY}`);
-//? sendGridMail.setApiKey(process.env.EMAIL_API_KEY);
+sendGridMail.setApiKey(process.env.EMAIL_API_KEY);
 
 
 //*-----------------------------------------------------------------------------
@@ -311,8 +309,6 @@ function isEmailAuthenticatedOnIP(email, clientAccessIP) {
 // AI: ?? 444 must implement API to maintain: email/clientAccessIPs
 
 
-let registeredEmailKey = false; // ??$$$ CLEANUP: TRASH
-
 //*---------------------------------------------------------
 //* Generate and send verification code to the supplied email,
 //* retaining authentication info in the supplied socket.
@@ -330,13 +326,6 @@ async function sendEmailVerificationCode(socket, email) {
   // log(`verificationCode: ${verificationCode}`); // NO NO: info is too sensitive
 
   // email verification code to the supplied email address
-  // ... register our API key to the service object  // ??$$$ CLEANUP: TRASH
-  //     done one time only
-  //     done late (here) to insure our process.env has been resolved
-  if (!registeredEmailKey) {
-    sendGridMail.setApiKey(process.env.EMAIL_API_KEY);
-    registeredEmailKey = true;
-  }
   // ... define our message to be email
   const emailContent = {
     to:      email,
