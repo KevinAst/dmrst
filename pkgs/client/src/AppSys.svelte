@@ -2,6 +2,7 @@
  import UserProfileIcon  from './UserProfileIcon.svelte';
  import SystemDisplay    from './SystemDisplay.svelte';
  import SignIn           from './SignIn.svelte';
+ import RegisterGuest    from './RegisterGuest.svelte';
  import {joinSystem}     from './system';
  import user             from './user';
  import alert            from './alert';
@@ -54,6 +55,10 @@
    dispComp = SignIn; // display sign-in screen
  }
 
+ function handleRegisterGuest() {
+   dispComp = RegisterGuest; // display register-guest screen
+ }
+
  async function handleSignOut() {
    try {
      await user.signOut();   // sign our user out
@@ -93,7 +98,7 @@
     &nbsp;&nbsp;&nbsp;
     &nbsp;&nbsp;&nbsp;
     &nbsp;&nbsp;&nbsp;
-    <UserProfileIcon {handleSignIn} {handleSignOut}/>
+    <UserProfileIcon {handleSignIn} {handleSignOut} {handleRegisterGuest}/>
 
     <!-- alert message -->
     <div>
@@ -101,12 +106,12 @@
     </div>
   </div>
 
-  <!-- our "routed" component 
-       HACK: pass system to all parms to all components
-             actual needs:
-             <SystemDisplay {system}/>
-     -->
-  <svelte:component this={dispComp} {system}/>
+  <!-- our "routed" component  -->
+  {#if dispComp === SystemDisplay}
+    <svelte:component this={dispComp} {system}/>
+  {:else}
+    <svelte:component this={dispComp}/>
+  {/if}
 
 </main>
 

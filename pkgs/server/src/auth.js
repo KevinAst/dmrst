@@ -25,6 +25,11 @@ const  log = logger(`${logPrefix}`);
 // the socket.io server in control
 let io = null;
 
+// register our SendGrid API key to the service object
+// ??$$$ NEW:
+log.f(`????????????? EMAIL_API_KEY: ${process.env.EMAIL_API_KEY}`);
+//? sendGridMail.setApiKey(process.env.EMAIL_API_KEY);
+
 
 //*-----------------------------------------------------------------------------
 //* register our socket.io handlers
@@ -306,7 +311,7 @@ function isEmailAuthenticatedOnIP(email, clientAccessIP) {
 // AI: ?? 444 must implement API to maintain: email/clientAccessIPs
 
 
-let registeredEmailKey = false;
+let registeredEmailKey = false; // ??$$$ CLEANUP: TRASH
 
 //*---------------------------------------------------------
 //* Generate and send verification code to the supplied email,
@@ -325,7 +330,7 @@ async function sendEmailVerificationCode(socket, email) {
   // log(`verificationCode: ${verificationCode}`); // NO NO: info is too sensitive
 
   // email verification code to the supplied email address
-  // ... register our API key to the service object
+  // ... register our API key to the service object  // ??$$$ CLEANUP: TRASH
   //     done one time only
   //     done late (here) to insure our process.env has been resolved
   if (!registeredEmailKey) {
@@ -345,7 +350,7 @@ async function sendEmailVerificationCode(socket, email) {
   };
   // ... send the email
   //     ANY ERROR should be handled by our invoker
-  //? await sendGridMail.send(emailContent); // AI: for now just rely on "showme" to minimize email traffic in DEV
+  //? await sendGridMail.send(emailContent); // ?? AI: activate this ... for now just rely on "showme" to minimize email traffic in DEV
 
   // expire verification code in 5 mins
   const timeout = 1 * 60 * 1000; // ?? change this to 5 mins
@@ -366,23 +371,24 @@ async function sendEmailVerificationCode(socket, email) {
 //*---------------------------------------------------------
 //* Clear out the sign-in verification info found in the supplied socket
 //* 
-//* There are three contexts in which this function "could" be invoked:
+//* There are four contexts in which this function "could" be invoked:
 //* 
-//*  1. successful verification <<< this clear function IS invoked
+//*  1. successful verification <<< this clear function IS invoked (server-side)
 //*     Here the client SignIn screen will explicitly reset itself
 //* 
-//*  2. user cancels the sign-in verification <<< this clear function IS NOT invoked
+//*  2. user cancels the sign-in verification <<< this clear function is currently NOT invoked (client-side)
 //*     Here the client SignIn screen will explicitly reset itself.
 //*     We use the KISS principle, and do NOT notify the server,
 //*     as it will automatically expire in a short time.
 //* 
-//*  3. sign-in verification expires <<< this clear function IS invoked
+//*  3. sign-in verification expires <<< this clear function IS invoked (server-side)
 //*     Here the clear function is invoked BY a server-initiated process (via timeout).
 //*     We employ a KISS principle, and DO NOT notify the client.
 //*     The client will discover this when they attempt to verify,
 //*     and the user can explicitly cancel the operation.
-//*     WE CHOSE THIS PATH, because there is NO "clean" way for our SignIn.svelte
-//*     to receive a socket notification of this expiration.
+//* 
+//*  4. user has exceeded the max number of "invalid" verification attempts.
+//*     ... similar to #3
 //* 
 //* RETURN: void
 //*---------------------------------------------------------

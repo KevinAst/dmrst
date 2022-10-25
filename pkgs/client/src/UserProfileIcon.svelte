@@ -26,12 +26,28 @@
 <div class="dropdown">
   <button on:click={toggleUserMenu} class="dropbtn">User: {$user.getUserName()}</button>
   <div bind:this={userDropdown} class="dropdown-content" class:show={showUserDropdown}>
+    <!-- Profile  -->
     {#if $user.isSignedIn()}
-       <a on:click={() => alert.display('User Profile will be implemented LATER')}>Profile</a>
-       <a on:click={handleSignOut}>Sign Out</a>
-    {:else}
-       <a on:click={handleRegisterGuest}>Register Guest</a>
-       <a on:click={handleSignIn}>Sign In</a>
+      <a href={null} on:click|preventDefault={() => alert.display('User Profile will be implemented LATER')}>Profile</a>
+    {/if}
+    <!-- Register Guest  -->
+    {#if !$user.isSignedIn()}
+      <a href={null} on:click|preventDefault={handleRegisterGuest}>Register Guest</a>
+    {/if}
+
+    <!-- Sign In -->
+    {#if !$user.isSignedIn() && !$user.inSignInVerificationPhase}
+      <a href={null} on:click|preventDefault={handleSignIn}>Sign In</a>
+    {/if}
+
+    <!-- Verify Sign In ... handled by Sign In, but a different "title" -->
+    {#if $user.inSignInVerificationPhase}
+      <a href={null} on:click|preventDefault={handleSignIn}>Verify Sign In</a>
+    {/if}
+
+    <!-- Sign Out -->
+    {#if $user.isSignedIn()}
+      <a href={null} on:click|preventDefault={handleSignOut}>Sign Out</a>
     {/if}
   </div>
 </div>
@@ -70,7 +86,7 @@
 
  /* Links inside the dropdown */
  .dropdown-content a {
-   color:            black;
+   color:           black;
    padding:         12px 16px;
    text-decoration: none;
    display:         block;

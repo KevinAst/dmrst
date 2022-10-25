@@ -41,6 +41,9 @@ const initialStoreValue = {
   // for registered guests (that are NOT signed-in) ...
   guestName: '',
 
+  // during sign-in process, waiting for verification to occur
+  inSignInVerificationPhase: false,
+
   // ***********************************************
   // *** value-added methods of our value object ***
   // ***********************************************
@@ -129,6 +132,9 @@ function createUser() {
       //     via SignIn.svelte invoker ... ex: invalid email
       await signIn(email);
 
+      // reflexively update our custom store to reflect that we are inSignInVerificationPhase
+      update(state => ({...state, inSignInVerificationPhase: true}));
+
       // that's all folks
       alert.display(`A sign-in verification email has been sent to ${email}`);
     },
@@ -148,13 +154,29 @@ function createUser() {
       log(`successful signInVerification user with email: ${userState.email} ... userState: `, userState);
 
       // reflexively update our custom store to reflect this successful sign-in
-      update(state => ({...state, ...userState}));
+      update(state => ({...state, ...userState, inSignInVerificationPhase: false}));
 
       // retain sign-in token (in support of auto-authentication)
       localStorage.setItem('token', token);
 
       // that's all folks
       alert.display(`Welcome ${get(user).getUserName()} :-)`);
+    },
+
+    // cancel sign-in verification
+    // RETURN: void <promise>
+    // THROW:  Error with optional e.userMsg (when e.isExpected()) for expected user error (ex: not signed in)
+    cancelSignInVerification: () => {
+      // reflexively update our custom store to reflect that we are NO LONGER inSignInVerificationPhase
+      update(state => ({...state, inSignInVerificationPhase: false}));
+
+      // NOTE: Currently we do NOT notify the server of this
+      //       - we use the KISS principle
+      //       - the important thing is the client is reset
+      //       - the server will automatically expire this verification in a short time
+      //         * likewise, that expiration does NOT sync with the client
+      //           ... the client will discover this when they attempt to verify,
+      //               and the user can explicitly cancel the operation.
     },
 
     // sign-out user
