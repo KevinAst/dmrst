@@ -3,19 +3,20 @@
  //*** Router.svelte ... a combination Header & Router
  //***
 
- import IDE              from './IDE.svelte';
- import System           from './sys/System.svelte';
- import Chat             from './chat/Chat.svelte';
- import Admin            from './Admin.svelte';
- import SignIn           from './auth/SignIn.svelte';
- import RegisterGuest    from './auth/RegisterGuest.svelte';
- import UserProfileIcon  from './auth/UserProfileIcon.svelte';
- import user             from './auth/user';
- import chat             from './chat/chat';
- import alert            from './util/alert';
- import longpress        from './util/longpress';
- import logger           from './core/util/logger';
- const  log = logger('vit:client:Router');
+ import IDE              from '../../IDE.svelte';
+ import System           from '../../sys/System.svelte';
+ import Chat             from '../../chat/Chat.svelte';
+ import Admin            from '../../Admin.svelte';
+ import SignIn           from '../../auth/SignIn.svelte';
+ import RegisterGuest    from '../../auth/RegisterGuest.svelte';
+ import UserProfileIcon  from '../../auth/UserProfileIcon.svelte';
+ import user             from '../../auth/user';
+ import chat             from '../../chat/chat';
+ import alert            from '../../util/alert';
+ import longpress        from '../../util/longpress';
+ import logger           from '../../core/util/logger';
+ const  log = logger('vit:client:main:IDE:Router');
+
 
  // TODO: add some logging!
 

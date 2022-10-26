@@ -1,13 +1,14 @@
 <script>
- import UserProfileIcon  from './auth/UserProfileIcon.svelte';
- import SystemDisplay    from './sys/SystemDisplay.svelte';
- import SignIn           from './auth/SignIn.svelte';
- import RegisterGuest    from './auth/RegisterGuest.svelte';
- import {joinSystem}     from './sys/system';
- import user             from './auth/user';
- import alert            from './util/alert';
- import logger           from './core/util/logger';
- const  log   = logger('vit:client:AppSys');
+ import UserProfileIcon  from '../../auth/UserProfileIcon.svelte';
+ import SystemDisplay    from '../../sys/SystemDisplay.svelte';
+ import SignIn           from '../../auth/SignIn.svelte';
+ import RegisterGuest    from '../../auth/RegisterGuest.svelte';
+ import {joinSystem}     from '../../sys/system';
+ import user             from '../../auth/user';
+ import alert            from '../../util/alert';
+ import logger           from '../../core/util/logger';
+ const  log   = logger('vit:client:main:SYS:Router');
+
 
  // the active component being displayed
  let dispComp = SystemDisplay; // default to SystemDisplay
@@ -46,9 +47,9 @@
 
  }
 
-  // auto attach to a hard-coded system (TEMP FOR NOW)
-  // ... HACK: use timeout to allow our auto-signin to take affect
-  setTimeout(attachToSystem, 1000);
+ // auto attach to a hard-coded system (TEMP FOR NOW)
+ // ... HACK: use timeout to allow our auto-signin to take affect
+ setTimeout(attachToSystem, 1000);
 
 
  function handleSignIn() {
@@ -77,49 +78,40 @@
    }
  }
 
-
 </script>
 
-<main>
+<div>
+  <!-- our crude header -->
+  <i on:click={() => dispComp = SystemDisplay} class="sys">
+    <b>visualize-it</b>
+    (ver 0.2)
+    <b>System-Runner</b>
+  </i>
+  &nbsp;&nbsp;&nbsp;
+  &nbsp;&nbsp;&nbsp;
+  &nbsp;&nbsp;&nbsp;
 
+  <!-- UserProfile icon -->
+  &nbsp;&nbsp;&nbsp;
+  &nbsp;&nbsp;&nbsp;
+  &nbsp;&nbsp;&nbsp;
+  &nbsp;&nbsp;&nbsp;
+  <UserProfileIcon {handleSignIn} {handleSignOut} {handleRegisterGuest}/>
+
+  <!-- alert message -->
   <div>
-    <!-- our crude header -->
-    <i on:click={() => dispComp = SystemDisplay} class="sys">
-      <b>visualize-it</b>
-      (ver 0.2)
-      <b>System-Runner</b>
-    </i>
-    &nbsp;&nbsp;&nbsp;
-    &nbsp;&nbsp;&nbsp;
-    &nbsp;&nbsp;&nbsp;
-
-    <!-- UserProfile icon -->
-    &nbsp;&nbsp;&nbsp;
-    &nbsp;&nbsp;&nbsp;
-    &nbsp;&nbsp;&nbsp;
-    &nbsp;&nbsp;&nbsp;
-    <UserProfileIcon {handleSignIn} {handleSignOut} {handleRegisterGuest}/>
-
-    <!-- alert message -->
-    <div>
-      <i class="alert">{$alert}&nbsp;</i>
-    </div>
+    <i class="alert">{$alert}&nbsp;</i>
   </div>
+</div>
 
-  <!-- our "routed" component  -->
-  {#if dispComp === SystemDisplay}
-    <svelte:component this={dispComp} {system}/>
-  {:else}
-    <svelte:component this={dispComp}/>
-  {/if}
-
-</main>
+<!-- our "routed" component  -->
+{#if dispComp === SystemDisplay}
+  <svelte:component this={dispComp} {system}/>
+{:else}
+  <svelte:component this={dispComp}/>
+{/if}
 
 <style>
- main {
-   padding: 1em;
-   margin:  0 auto;
- }
  .sys {
    cursor: pointer;
  }
