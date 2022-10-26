@@ -13,7 +13,7 @@ const  log = logger('vit:client:chat');
 // SESSION:
 // {
 //   otherSocketId: 'aSocketId', // the other-user socketId
-//   otherUserId:   'aUserId',   // the other-user userId
+//   otherUserName: 'aUserName', // the other-user userName
 //   msgs: [                     // all the messages in this session
 //     {       // one of many messages
 //       when: date,
@@ -36,7 +36,7 @@ const initialChat = {
   //*** adorned properties (based on SESSION map - above)
   //***
 
-  sessions: [],    // SESSION[] ... array rendition of SESSION map (sorted by otherUserId)
+  sessions: [],    // SESSION[] ... array rendition of SESSION map (sorted by otherUserName)
   isActive: false, // are their active sessions
 };
 
@@ -44,7 +44,7 @@ const initialChat = {
 // RETURN: new chat value object
 function adorn(sessionMap) {
   const sessions = Object.values(sessionMap) // extract session array
-                         .sort((a,b) => a.otherUserId.localeCompare(b.otherUserId)); // sorted by otherUserId
+                         .sort((a,b) => a.otherUserName.localeCompare(b.otherUserName)); // sorted by otherUserName
   const isActive = sessions.length > 0;
   return {
     session: sessionMap,
@@ -67,23 +67,23 @@ function createChat() {
     },
 
     // connect our chat with another user
-    connect: (otherSocketId, userId, msg) => { // ... invoked by 'private-msg-connect' event (below)
+    connect: (otherSocketId, userName, msg) => { // ... invoked by 'private-msg-connect' event (below)
       // default params appropriately
-      userId = userId || 'Unknown';
-      msg    = msg    || `Hello from ${userId}`;
+      userName = userName || 'Unknown';
+      msg      = msg      || `Hello from ${userName}`;
 
       // connect our chat
-      log(`connecting chat with: ${userId}, msg: "${msg}"`);
+      log(`connecting chat with: ${userName}, msg: "${msg}"`);
       update(state => adorn({...state.session,
                              [otherSocketId]: {
                                ...state.session[otherSocketId], // for good measure (not really needed since we are injecting all properties)
                                otherSocketId,
-                               otherUserId:   userId,
+                               otherUserName: userName,
                                // preserve session content when already active
                                // ... WITH protection (via empty array) when NOT already active
                                msgs: [...(state.session[otherSocketId]?.msgs || []), {when: new Date(), who: true, /* other-user */ msg}],
                              }} ));
-      alert.display(`Chat now available with ${userId} (see Chat tab)`);
+      alert.display(`Chat now available with ${userName} (see Chat tab)`);
     },
 
     // send a message to the other party of the given session
@@ -93,7 +93,7 @@ function createChat() {
       const session = get(chat).session[otherSocketId];
 
       // send the message
-      log(`sending msg: "${msg}" TO: ${session.otherUserId}`);
+      log(`sending msg: "${msg}" TO: ${session.otherUserName}`);
       //                         TO:                    FROM:
       socket.emit('private-msg', session.otherSocketId, socket.id,  msg);
 
@@ -111,7 +111,7 @@ function createChat() {
       // obtain the designated session that is communicating with us
       const session = get(chat).session[otherSocketId];
 
-      log(`receiving msg: "${msg}" FROM: ${session.otherUserId}`);
+      log(`receiving msg: "${msg}" FROM: ${session.otherUserName}`);
 
       // update this message in our state
       update(state => adorn({...state.session,
@@ -131,7 +131,7 @@ function createChat() {
       // obtain the designated session to disconnect
       const session = get(chat).session[otherSocketId];
 
-      log(`disconnect our chat session with ${session.otherUserId}`);
+      log(`disconnect our chat session with ${session.otherUserName}`);
 
       // update our state to reflect a disconnect
       // ... remove the session completely
@@ -154,7 +154,7 @@ function createChat() {
       const session = get(chat).session[otherSocketId];
 
       if (session) { // can be undefined WHEN chat to self
-        log(`chat session with ${session.otherUserId} has been disconnected (by them)`);
+        log(`chat session with ${session.otherUserName} has been disconnected (by them)`);
 
         // update our state to reflect a disconnect
         // ... remove the session completely
@@ -187,8 +187,8 @@ export function registerChatSocketHandlers(_socket) {
   socket = _socket;
 
   // handle private-msg connection request
-  socket.on('private-msg-connect', (otherSocketId, userId) => {
-    chat.connect(otherSocketId, userId);
+  socket.on('private-msg-connect', (otherSocketId, userName) => {
+    chat.connect(otherSocketId, userName);
   });
 
   // receive private-msg

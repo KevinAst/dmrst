@@ -46,6 +46,6 @@
 
 <select bind:value={sessionId}> <!-- select the desired chat session -->
   {#each $chat.sessions as sess (sess.otherSocketId)}
-    <option value={sess.otherSocketId}>{sess.otherUserId}</option>
+    <option value={sess.otherSocketId}>{sess.otherUserName}</option>
   {/each}
 </select>

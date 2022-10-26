@@ -292,14 +292,14 @@ export function registerSystemStoreSocketHandlers(_socket) {
     // with NO checks on the server:
     // - the server will crash
     // - and ALL client socket connections are LOST :-(
-    // if (activeUser.userId === 'Kevin' && model.K1.pres > 200) {
+    // if (activeUser.name === 'Kevin' && model.K1.pres > 200) {
     //   ack({errMsg: 'valve 1 BLEW UP (over 200 lbs of pressure)'});
     // }
 
     // TEMPORARY CODE: simulate a timeout condition (by never responding - NO ack())
     // with NO checks on the server:
     // - the server will block forever (simply stops)
-    // if (activeUser.userId === 'Resa' && model.R1.pres > 1300) {
+    // if (activeUser.name === 'Resa' && model.R1.pres > 1300) {
     //   return; // by never responding (ack()) server will timeout
     // }
 

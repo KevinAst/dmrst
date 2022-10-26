@@ -46,7 +46,7 @@
   </center>
 
   <div class="chatlist">
-    <span class="other">{session?.otherUserId}</span>
+    <span class="other">{session?.otherUserName}</span>
     <span class="me">Me ({$user.getUserName()}) </span>
     {#each session?.msgs || [] as msg (msg.when)}
       <span class={msg.who ? 'other' : 'me'}>{msg.msg}</span>
