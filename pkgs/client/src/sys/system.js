@@ -58,7 +58,7 @@ function createSystemStore(sysId, accessCode, model, isHost, isRunning=false) {
         const newModel = structuredClone(state.model);
 
         // apply delta changes
-        // ... use a simple patteren, restricted to what we know we have
+        // ... use a simple pattern, restricted to what we know we have
         Object.entries(deltaModelChanges).forEach(([key, val]) => {
           const [compKey, propKey] = key.split('.');
           newModel[compKey][propKey] = val;
@@ -117,13 +117,13 @@ export async function launchSystem(sysId,      // system identifier -and- alias 
   // AI: although this works, I'm thinking we simply utilize the server validation exclusively
   // if (getSystem(sysId)) {
   //   log(`local client cache found system '${sysId}' ... erroring out`);
-  //   // THIS - NO: this seemed to be a wild goose chase (due to a sepereate app bug)
+  //   // THIS - NO: this seemed to be a wild goose chase (due to a separate app bug)
   //   //? BECAUSE OUR FUNCT IS ASYNC, we must return error differently
   //   //? return Promise.reject( // for ease of client usage, consistently deal with async errors only ... https://makandracards.com/makandra/43653-javascript-don-t-throw-exceptions-from-async-functions
   //   //?   new Error('*** USER ERROR *** in "launchSystem()" function')
   //   //?     .defineUserMsg(`system: '${sysId}' already exists (in client cache)`)
   //   //? );
-  //   // OR THiS - BOTH SEEM TO WORK ... I think this was a wild goose chase (due to a sepereate app bug)
+  //   // OR THiS - BOTH SEEM TO WORK ... I think this was a wild goose chase (due to a separate app bug)
   //   throw new Error('*** USER ERROR *** in "launchSystem()" function')
   //     .defineUserMsg(`system '${sysId}' already exists (in client cache)`);
   // }
@@ -303,7 +303,7 @@ export function registerSystemStoreSocketHandlers(_socket) {
     //   return; // by never responding (ack()) server will timeout
     // }
 
-    // apply programatic state changes (via simulated logic) as needed
+    // apply programmatic state changes (via simulated logic) as needed
     // ... iterate through all components of our system model
     Object.entries(model).forEach( ([compName, comp]) => {
 
