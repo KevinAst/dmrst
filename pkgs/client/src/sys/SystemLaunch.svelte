@@ -1,7 +1,7 @@
 <script>
  import {launchSystem} from './system';
 
- import alert  from '../alert';
+ import alert  from '../util/alert';
  import logger from '../core/util/logger';
  const  log =  logger('vit:client:SystemLaunch');
 

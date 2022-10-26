@@ -12,7 +12,7 @@
  import UserProfileIcon  from './auth/UserProfileIcon.svelte';
  import user             from './auth/user';
  import chat             from './chat/chat';
- import alert            from './alert';
+ import alert            from './util/alert';
  import longpress        from './util/longpress';
  import logger           from './core/util/logger';
  const  log = logger('vit:client:Router');

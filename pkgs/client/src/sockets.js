@@ -10,7 +10,7 @@ import {registerSystemSocketHandlers}        from './sys/systemIO';
 import {registerLogFilterSocketHandlers}     from './core/util/logger/filterLogsIOClient';
 import {isDev}                               from './util/env';
 import user                                  from './auth/user';
-import alert                                 from './alert';
+import alert                                 from './util/alert';
 
 import logger from './core/util/logger';
 const  log = logger('vit:client:sockets');

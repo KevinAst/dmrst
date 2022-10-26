@@ -2,7 +2,7 @@
  // NOTE: simple dropdown taken from:  https://www.w3schools.com/howto/howto_js_dropdown.asp
 
  import user   from './user';
- import alert  from '../alert';
+ import alert  from '../util/alert';
 
  export let handleSignIn;        // PROP: the function to invoke for sign-in
  export let handleSignOut;       // PROP: the function to invoke for sign-out

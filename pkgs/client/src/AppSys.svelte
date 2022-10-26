@@ -5,7 +5,7 @@
  import RegisterGuest    from './auth/RegisterGuest.svelte';
  import {joinSystem}     from './sys/system';
  import user             from './auth/user';
- import alert            from './alert';
+ import alert            from './util/alert';
  import logger           from './core/util/logger';
  const  log   = logger('vit:client:AppSys');
 

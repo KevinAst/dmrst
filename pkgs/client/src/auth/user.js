@@ -3,7 +3,7 @@
 //***
 
 import {writable, get} from 'svelte/store';
-import alert           from '../alert';
+import alert           from '../util/alert';
 import {getDeviceId}   from './device';
 import {socketAckFn}   from '../core/util/socketIOUtils';
 import logger          from '../core/util/logger';
