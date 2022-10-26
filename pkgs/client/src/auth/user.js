@@ -42,7 +42,9 @@ const initialStoreValue = {
   guestName: '',
 
   // during sign-in process, waiting for verification to occur
-  inSignInVerificationPhase: false,
+  // ... technically contains the email that is pending verification
+  // ... can be used as a boolean too (empty string yields falsy)
+  inSignInVerificationPhase: '',
 
   // ***********************************************
   // *** value-added methods of our value object ***
@@ -133,10 +135,10 @@ function createUser() {
       await signIn(email);
 
       // reflexively update our custom store to reflect that we are inSignInVerificationPhase
-      update(state => ({...state, inSignInVerificationPhase: true}));
+      update(state => ({...state, inSignInVerificationPhase: email}));
 
       // that's all folks
-      alert.display(`A sign-in verification email has been sent to ${email}`);
+      alert.display(`A sign-in verification code has been sent to your email: ${email}`);
     },
 
     // sign-in-verification of user (Phase II - verify email verification code)
@@ -154,7 +156,7 @@ function createUser() {
       log(`successful signInVerification user with email: ${userState.email} ... userState: `, userState);
 
       // reflexively update our custom store to reflect this successful sign-in
-      update(state => ({...state, ...userState, inSignInVerificationPhase: false}));
+      update(state => ({...state, ...userState, inSignInVerificationPhase: ''}));
 
       // retain sign-in token (in support of auto-authentication)
       localStorage.setItem('token', token);
@@ -163,12 +165,30 @@ function createUser() {
       alert.display(`Welcome ${get(user).getUserName()} :-)`);
     },
 
+    // resend code for sign-in-verification of user
+    // RETURN: void <promise>
+    // THROW:  Error with optional e.userMsg (when e.isExpected()) for expected user error (ex: hmmm)
+    signInVerificationResendCode: async () => {
+      log(`resend code for signInVerification of user's email`);
+
+      // request our server to process request
+      // ... allow Error to pass-through to client
+      //     via SignIn.svelte invoker ... ex: hmmm
+      await signInVerificationResendCode();
+
+      // NOTE: subsequent steps represent successful code resend (i.e. NO Error was thrown)
+      log(`successful resend of signInVerification code`);
+
+      // that's all folks
+      alert.display(`A sign-in verification code has been RE-SENT to your email: ${get(user).inSignInVerificationPhase}`);
+    },
+
     // cancel sign-in verification
     // RETURN: void <promise>
     // THROW:  Error with optional e.userMsg (when e.isExpected()) for expected user error (ex: not signed in)
-    cancelSignInVerification: () => {
+    signInVerificationCancel: () => {
       // reflexively update our custom store to reflect that we are NO LONGER inSignInVerificationPhase
-      update(state => ({...state, inSignInVerificationPhase: false}));
+      update(state => ({...state, inSignInVerificationPhase: ''}));
 
       // NOTE: Currently we do NOT notify the server of this
       //       - we use the KISS principle
@@ -323,6 +343,17 @@ function signInVerification(verificationCode) {
   return new Promise((resolve, reject) => {
     // issue the 'sign-in-verification' socket request to our server
     socket.emit('sign-in-verification', verificationCode, socketAckFn(resolve, reject));
+  });
+}
+
+// convenience signInVerificationResendCode utility wrapping the socket protocol with an async request/response
+// RETURN: void (PROMISE):
+// THROW:  Error with optional e.userMsg (when e.isExpected()) for expected user error (ex: invalid verification code)
+function signInVerificationResendCode() {
+  // promise wrapper of our socket message protocol
+  return new Promise((resolve, reject) => {
+    // issue the 'sign-in-verification-resend-code' socket request to our server
+    socket.emit('sign-in-verification-resend-code', socketAckFn(resolve, reject));
   });
 }
 

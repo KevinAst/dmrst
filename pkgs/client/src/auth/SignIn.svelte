@@ -68,9 +68,9 @@
    }
  }
 
- function handleCancelSignInVerification() {
+ async function handleSignInVerificationResendCode() {
    try {
-     user.cancelSignInVerification();
+     await user.signInVerificationResendCode();
      signInMsg = ''; // ... clear any prior message
    }
    catch(e) {
@@ -80,8 +80,26 @@
        signInMsg = e.userMsg;
      }
      else { // notify user of unexpected errors, and log detail
-       signInMsg = 'Unexpected error in cancelSignInVerification process ... see logs for detail';
-       log.v(`*** ERROR *** Unexpected error in cancelSignInVerification process: ${e}`, e);
+       signInMsg = 'Unexpected error in signInVerificationResendCode process ... see logs for detail';
+       log.v(`*** ERROR *** Unexpected error in signInVerificationResendCode process: ${e}`, e);
+     }
+   }
+ }
+
+ function handleSignInVerificationCancel() {
+   try {
+     user.signInVerificationCancel();
+     signInMsg = ''; // ... clear any prior message
+   }
+   catch(e) {
+     // AI: This entire logic is accomplished by discloseError.js BUT needs cleaned up a bit (with it's coupling)
+     //     ... c:/dev/visualize-it/src/util/discloseError.js
+     if (e.isExpected()) {  // notify user of expected errors
+       signInMsg = e.userMsg;
+     }
+     else { // notify user of unexpected errors, and log detail
+       signInMsg = 'Unexpected error in signInVerificationCancel process ... see logs for detail';
+       log.v(`*** ERROR *** Unexpected error in signInVerificationCancel process: ${e}`, e);
      }
    }
  }
@@ -95,8 +113,8 @@
   <div class="indent">
     {#if $user.inSignInVerificationPhase}
 
-    <i>A verification code hase been sent to your email .</i><br/><br/>
-
+    <i>A sign-in verification code has been sent to your email: {$user.inSignInVerificationPhase}</i><br/><br/>
+ 
     <form onsubmit="return false;">
       <label>
         <b>Code:</b>
@@ -108,10 +126,8 @@
 
       <div class="error">{signInMsg}</div>
       <button on:click={handleSignInVerification} value="submit">Verify</button>
-      <!-- 
-           <button on:click={handleSignInVerificationResend}>Resend</button>
-         -->
-      <button on:click={handleCancelSignInVerification}>Cancel</button>
+      <button on:click={handleSignInVerificationResendCode}>Resend Code</button>
+      <button on:click={handleSignInVerificationCancel}>Cancel</button>
     </form>
 
     {:else}

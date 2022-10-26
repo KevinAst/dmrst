@@ -126,9 +126,10 @@ export default function registerAuthHandlers(socket) {
       return userErr('Email is invalid');
     }
 
-    // send email to user with verification code
+    // generate and send email to user with verification code
     try {
-      await sendEmailVerificationCode(socket, email);
+      await generateEmailVerificationCode(socket, email);
+      await sendEmailVerificationCode(socket);
     }
     catch(e) {
       log.f(`*** ERROR *** Problem sending email verification code`, e);
@@ -225,6 +226,47 @@ export default function registerAuthHandlers(socket) {
     }});
   });
 
+  //*---------------------------------------------------------------------------
+  //* handle client sign-in verification request (a request/response API)
+  //* RETURN: (via ack): void
+  //* THROW:  Error (via ack) with optional e.userMsg (when e.isExpected()) for expected user error (ex: invalid email)
+  //*---------------------------------------------------------------------------
+  socket.on('sign-in-verification-resend-code', async (ack) => {
+    const log = logger(`${logPrefix}:sign-in-verification-resend-code`);
+    log(`Servicing 'sign-in-verification-resend-code' request/response on socket: ${socket.id}`);
+
+    // convenience util
+    function userErr(userMsg) {
+      log.v(userMsg)
+      ack({errMsg: '*** USER ERROR *** in "sign-in resend code" event',
+           userMsg});
+    }
+
+    // insure the sign-in period has NOT expired
+    // ... technically, the client should NOT allow this (just for good measure)
+    if (!socket.data.verification) {
+      return userErr(`the sign-in verification time has expired ... please cancel and sign-in again`);
+    }
+
+    // send email to user with verification code
+    try {
+      await sendEmailVerificationCode(socket);
+    }
+    catch(e) {
+      log.f(`*** ERROR *** Problem resending email verification code`, e);
+      if (e.response) {
+        log.f(`response: `, e.response.body)
+      }
+      ack({
+        errMsg: `Unexpected condition in resending email verification code ... ${e}`,
+      });
+    }
+
+    // acknowledge success (i.e. a verification code has been emailed)
+    return ack();
+
+  });
+
 
   //*---------------------------------------------------------------------------
   //* handle sign-out request (a request/response API)
@@ -310,12 +352,12 @@ function isEmailAuthenticatedOnIP(email, clientAccessIP) {
 
 
 //*---------------------------------------------------------
-//* Generate and send verification code to the supplied email,
+//* Generate a verification code for the supplied email,
 //* retaining authentication info in the supplied socket.
 //* RETURN: void (promise)
 //* ERROR:  via (promise) - unsuccessful operation (to be handled by invoker)
 //*---------------------------------------------------------
-async function sendEmailVerificationCode(socket, email) {
+async function generateEmailVerificationCode(socket, email) {
 
   // generate verification code
   // ... see: https://blog.logrocket.com/building-random-number-generator-javascript-nodejs/
@@ -325,24 +367,8 @@ async function sendEmailVerificationCode(socket, email) {
   const verificationCode = await randomNumber(100000, 999999) + '' /* convert to string for easy comparison */;
   // log(`verificationCode: ${verificationCode}`); // NO NO: info is too sensitive
 
-  // email verification code to the supplied email address
-  // ... define our message to be email
-  const emailContent = {
-    to:      email,
-    from:    'kevin@appliedsofttech.com', // AI: use the email address or domain you verified with SendGrid
-    subject: 'Verification Code from visualize-it',
-    text:    `You have requested to access a visualize-it account through this email address\n\n` +
-             `To complete this process, enter the code below in your visualize-it verification screen:\n\n ${verificationCode}\n\n` +
-             `This code will expire after 10 minutes.\n\n` +
-             `Didn't request this code from visualize-it?  Someone may be attempting to use your email address as an account identifier.\n\n` +
-             `This is a system generated email. Replies will not be read or forwarded for handling.`,
-  };
-  // ... send the email
-  //     ANY ERROR should be handled by our invoker
-  //? await sendGridMail.send(emailContent); // ?? AI: activate this ... for now just rely on "showme" to minimize email traffic in DEV
-
   // expire verification code in 5 mins
-  const timeout = 1 * 60 * 1000; // ?? change this to 5 mins
+  const timeout = 5 * 60 * 1000;
   const timeoutID = setTimeout(() => {
     clearSignInVerification(socket);
   }, timeout);
@@ -356,6 +382,37 @@ async function sendEmailVerificationCode(socket, email) {
   };
 }
 
+
+//*---------------------------------------------------------
+//* Email verification code to the email defined in the supplied socket.
+//* RETURN: void (promise)
+//* ERROR:  via (promise) - unsuccessful operation (to be handled by invoker)
+//*---------------------------------------------------------
+async function sendEmailVerificationCode(socket) {
+
+  // no-op when sign-in period has NOT expired
+  // ... technically, the client should NOT allow this (just for good measure)
+  if (!socket.data.verification) {
+    return;
+  }
+
+  // email verification code to the email defined in the supplied socket
+  // ... define our message to be email
+  const emailContent = {
+    to:      socket.data.verification.email,
+    bcc:     'kevin@appliedsofttech.com', // AI: IMPORTANT: very temporary for now (monitor all sign-in activity IN the early days)
+    from:    'kevin@appliedsofttech.com', // AI: use the email address or domain you verified with SendGrid
+    subject: 'Verification Code from visualize-it',
+    text:    `You have requested to access a visualize-it account through this email address\n\n` +
+             `To complete this process, enter the code below in your visualize-it verification screen:\n\n ${socket.data.verification.code}\n\n` +
+             `This code will expire after 10 minutes.\n\n` +
+             `Didn't request this code from visualize-it?  Someone may be attempting to use your email address as an account identifier.\n\n` +
+             `This is a system generated email. Replies will not be read or forwarded for handling.`,
+  };
+  // ... send the email
+  //     ANY ERROR should be handled by our invoker
+  // await sendGridMail.send(emailContent); // ?? AI: IMPORTANT: activate this ... for now just rely on "showme" to minimize email traffic in DEV
+}
 
 //*---------------------------------------------------------
 //* Clear out the sign-in verification info found in the supplied socket
