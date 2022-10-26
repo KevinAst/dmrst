@@ -1,4 +1,5 @@
-# ?? handled by root .gitignore /node_modules/
+# this is handled by our root .gitignore 
+# /node_modules/
 
 # machine generated output of our build
 /public/*/build/
