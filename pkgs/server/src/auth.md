@@ -33,7 +33,7 @@ by supplying a short-lived verification code sent to the email account.
 This confirms the user is the owner of the email.
 
 Once a verified account is established, an encrypted token is retained
-on the device (typically in browser localStorage), that allows the user
+on the device (in browser localStorage), that allows the user
 to auto-authenticate on subsequent sessions.
 
 This account email verification process can potentially be required
@@ -48,11 +48,16 @@ ease-of-use for the end user.
 
 ## Authentication Implementation
 
+The following diagram illustrates the major authentication structures
+that are maintained by our server:
+
+![Auth Server Structure](authServerStruct.png)
+
 1. Our client app maintains a "virtual" deviceId that correlates to a
    "virtual" device.  This is a randomly generated ID that is retained
-   on the device (typically in browser localStorage).  As a result it
-   has the same scope of localStorage (i.e. shared within a browser
-   instance accessing the same web site).
+   on the device (in browser localStorage).  As a result,
+   the deviceId has the same scope of localStorage (i.e. shared within
+   a browser instance accessing the same web site).
 
 1. Our server associates any session of the same device to a single
    user.  It pro-actively synchronizes any authentication changes
@@ -71,6 +76,9 @@ ease-of-use for the end user.
       The device **contains** a User obj, so all sessions
       from the same device will have the same enablement.
 
+      In reality, the Device obj is a very thin layer over the User
+      obj _(so as to not polute device keys into the User obj)_.
+
     - **User obj**: Represents the user with both profile and
       enablement information.
 
@@ -78,12 +86,27 @@ ease-of-use for the end user.
       has a consistent API.
 
       The client rendition is a singleton _(because it services the
-      entire module scope)_, and is a reactive store _(so changes are
-      immediately reflected throughout the code base)_.
+      entire module scope)_, and is a reactive svelte store _(so
+      changes are immediately reflected throughout the code base)_.
 
       From a server perspective, many User objects are maintained
       _(because the server manages multiple clients)_.  User objects
       are "contained in" and "accessed through" the Device obj.
+
+      - **Please NOTE** that it is possible for multiple devices to
+        contain copies of the same logical user.
+
+        This will occur when a user concurrently accesses visualize-it
+        from :
+        1. different computers
+        2. different browser instances (e.g. chrome/edge/safari/etc)
+        3. different locations
+
+        **This is OK!**
+
+        Keep in mind that, when this happens, there is **NO**
+        synchronization between these devices _(as there is between
+        active browser windows of the same device)_.
 
     - **Socket obj**: A single WebSocket is maintained for every
       visualize-it app instance.  **visualize-it** needs this
@@ -101,10 +124,10 @@ ease-of-use for the end user.
       creation time.  This means that all messages from a given socket
       have the authority of it's associated user/device.
 
-      Keep in mind that the user associated to a socket
-      can change over time.  The user may start out as an
-      authenticated user (John Doe), but if they sign-out
-      the user object morphs into a "guest" user.
+      Keep in mind that the user content associated in a socket can
+      change over time.  The user may start out as an authenticated
+      user (John Doe), but if they sign-out, the user object morphs
+      into a "guest" user.
 
       - Using the real-time socket protocol, these User changes are
         dynamically reflected on all clients (browser windows) of a
@@ -114,49 +137,32 @@ ease-of-use for the end user.
       Device(User)/Socket(window)
 
       ```
-      Device (user) --1:M--< Socket (browser windows) with back-ref socket.data.deviceId
+      Device (user) --1:M--< Socket (browser windows) with back-ref socket.data.deviceIdFull
       ```
 
       This relationship is maintained through two aspects:
-      * each socket contains a `deviceId` that references the device/user
+      * each socket contains a `deviceIdFull` that references the device/user
         ```
-        socket.data.deviceId
+        socket.data.deviceIdFull
         ```
       * the device maintains a collection of sockets using a socket.io room
         ```
-        ROOM NAME: device-{deviceId}
+        ROOM NAME: device-{deviceIdFull}
         ```
         - this has the advantage of dynamically auto syncing (by
           socket.io) when sockets are disconnected.
         - in addition, the room can be used to broadcast messages for things
           like user state changes to all windows of a device.
-
-    - **Please Note** that it is possible for multiple devices to
-      contain copies of the same logical user.
-
-      This will occur when a user concurrently accesses visualize-it
-      from different locations, or even different browser instances
-      (e.g. chrome/edge/safari/etc).
-
-      **This is OK!**
-
-      Keep in mind that, when this happens, there is **NO**
-      synchronization between these devices _(as there is between
-      active browser windows of the same device)_.
-
-      AI: Consider: Is this something we desire - by design?
-      - My gut says **YES**.
-      - However if **NO**, how hard would it be to rectify this?  I'm
-        thinking we would need to eliminate device, and key strictly
-        off of user.  ... hmmmm
       
-
 1. To supplement security considerations and account theft,
    **visualize-it**'s auto-authentication process supplements deviceId
    with a verification of the client's IP address.
 
+   This is where deviceIdFull comes into play:
+   `deviceIdFull = deviceId + clientAccessIP`
+
    The authentication process retains all the clientIP addresses that
-   a user authenticates on.  Only those addresses are allowed for
+   a user authenticates on.  Only those IP addresses are allowed for
    auto-authentication (i.e. auto sign-in at app startup).
 
    This means that when a user accesses the app from a different
@@ -166,21 +172,198 @@ ease-of-use for the end user.
    - A relative stable access of clientIP can be found in the http
      header that created the socket connection (see clientIP below).
 
-   - As it turns out,this is more of a clientRouterIP address
+   - As it turns out,this is more of a clientAccessIP address
      * multiple client devices will have the same clientIP when they
        are on a common router
 
    - A proxy may even make it more broader scoped (not certain)
      * having even MORE people with the same clientIP (behind the proxy)
 
-   - As a result, the clientRouterIP is managed as follows:
+   - As a result, the clientAccessIP is managed as follows:
      * we still use the virtual deviceId
-     * we retain all authenticated clientRouterIP addresses in our
+     * we retain all authenticated clientAccessIP addresses in our
        user DB
-     * authentication will retain any new clientRouterIP in it's user
+     * authentication will retain any new clientAccessIP in it's user
        DB
      * auto-authentication requires a match of one of the user's
-       clientRouterIPs
+       clientAccessIPs
+
+
+## Example
+
+The following diagram shows an Authentication Structure rendering in a
+live example.  It is limited to a single user (k@gm.com).  It
+highlights the various scenarios that can occur with the user running
+visualize-it on multiple machines, in multiple browsers, and in
+different locations.
+
+![Auth Structure Example](authStructExample.png)
+
+
+## Malicious Identity Detection
+
+Overall, the risk from Malicious Identity theft is thought to be
+minimal, as it would require physical access to your computer's
+localStorage.  This assumes of course that all
+[XSS](https://en.wikipedia.org/wiki/Cross-site_scripting) doors have
+been shut.  Even should these resources be nefariously accessed, there
+are safegaurds in place that minimize it's usefulness.
+
+1. ??$$ From the diagram above, you can see that it is possible for the
+   same deviceId to alternate clientAccessIP addresses.  A simple example
+   of this is when laptop moves locations, resulting in different network
+   access points.
+   
+   That being said, this should NEVER exist concurrently.  In other
+   words we should never see multiple active device objects with the
+   same deviceId.  This indicates some malicious activity _(or
+   inappropriate sharing of acount information)_.  For example, the
+   localStorage of one user's machine has been accessed and copied to
+   another machine.
+   
+   The system will actively check for this scenerio, and mark it in
+   such a way that requires the user to re-authenticate.
+   
+   - ??$$ I think this IS the PANIC button AUTOMATED
+   - ??$$ HOW
+   - ??$$ WHERE (WHAT CODE)
+     * I think it is in preAuthenticate()
+       JUST before it starts to create a new Device
+       >>> actually it could be in the createDevice() which is only invoked in preAuthenticate()
+           ... just before it catalogs the device
+               ALSO enhance createDevice() to setup association to socket <<< may be tricky for existing devices ... possibly look it up and use existing
+           ... the check could do a search and insure offending devices do NOT exist
+               AND do the initiative
+               ALSO returns null (when issue was found)
+               INVOKER would need to interpret undefined
+
+   - The varient of this scenerio is when the malicious activity
+     occurs at seperate times from when the real user is active.
+
+     BAD: Currently, this cannot be detected.  ??$$ can we address this
+     
+
+2. ??$$ A variant of the above malicious activity can manifest itself
+   if this occurs within the same network (i.e. the same
+   clientAccessIP address).
+
+   This manifests itself with the socket connections of the malicious
+   user being grouped in to the same Device object instance as the
+   real user.
+
+   This can manifest itself in two ways:
+
+   - Concurrently: When both the real user and the malitious user is
+     active at the same time.
+
+     * ??$$ Assuming that the IDE is being used in this scenerio
+       (where presumably the most damage can occur - IS THIS TRUE),
+       the system will issue warnings to all parties that the IDE
+       should NOT be concurrently active in multiple sessions (because
+       no synchronization occurs).  This is an indicator to the real
+       user that they should activate the PANIC button (??$$ detail
+       what this does).
+
+     * ??$$ There is a minor indication that this has occured - if one
+       user signs-out, all users of the device will be signed-out.
+
+       While this is certainly a crucial indicator to the real user,
+       it is doubtful that the malicious user would initiate a
+       sign-out.
+
+       ?? NOT TRUE IF WE IMPLEMENT BETTER SIGN-OUT: Even when the real user signs-out, it doesn't do all much to
+       the malicious user.  They are merely signed-out - but their
+       localStorage credentials are NOT updated.  Currently
+       localStorage is only updated on the client socket that
+       initiated the sign-out request (not the malicious user).  EVEN
+       if this were addressed, the malicious user could simply
+       manually re-instate the localStorage.
+
+   - Independently: When the malicious user is active at seperate
+     times of the real user.
+
+     BAD: Currently, this is NOT detectable. ??$$ can we fix this?
+
+   Overall, this is thought to be minimal risk, as the attacker
+   represents an "inside" job ... thoughts?
+
+?? Overall, a prevention technique to minimize malicious activity (if
+that is a problem for a user) is to sign-out frequently.  This process
+employs safegaurds that internally reset any saved credentials, making
+them invalid. ?? WHEN sign-out does the proper things (sign-out ALL
+users of this account, spanning multiple devices, and clear accepted
+validations from DB, and reset deviceId)
+
+
+??$$ Even if/when all these vulnaribilities are plugged, what prevents
+the malitious user from simply going back to the well and re-stealing
+the current active localStorage items.  It kinda depends on if this theft
+was done remotely (via XSS) or if it was from access to the physical machine?
+
+### Proactive Prevention of Malicious Activity
+
+??$$ CUR POINT
+
+??$$ rather than a Panic Button (Force Re-Authentication)
+     I think I can just do necessary things in an explicit sign-out process
+     1. force ALL active users of that email to sign-out
+        ... done via active socket connections
+     2. for the initiatator, reset the deviceID
+        ... this will thwart any thief, as their copied deviceId is no longer valid
+     3. clear the acceptable DB entries for that email
+        ... this will thwart any thief, as their copied deviceId is no longer valid
+     >> this way, if we need to communicate a potential issue (to the user), we can tell them to simply sign-out and back in again
+        ... WORDING: by signing-out you reset some internals that will help to keep your account secure
+     >> ALSO, may want to FORCE logout on some timeout of token
+
+- Maintain a persistent DB to:
+  * ?? retain acceptable (i.e. authenticated) email/deviceId+clientAccessIP pairs
+  * ?? mark tainted deviceIds <<< PROB NOT NEEDED ... if we simply CLEAR table above
+
+
+- NOTES:
+  * CURRENTLY deviceId is only retrieved in preAuthenticate() for the sole purpose of cataloging the Device object
+    WE ALWAYS catalog the Device object in-memory ... at minimum with a Guest user
+  * ALSO we only can get to the sign-in screen FOR guests
+  * THIS IS OK
+
+- PreAuthenticate:
+  * get accetable deviceId that is NOT on the tainted list                         <<< a MOD to our current process
+    ... will itterativally ask for deviceId to be re-set (on the client)
+  * get token (email) ... as normal
+  * if email/deviceId+clientAccessIP IS NOT in acceptable DB: NO PRE-AUTHENTICATE  <<< a MOD to our current process
+    ... this WAS: isEmailAuthenticatedOnIP(emailFromToken, clientAccessIP)
+    ... NOW is:   isEmailPreAuthenticatedOnDB(email, deviceIdFull);
+  * otherwise: WE ARE IN
+
+- SignIn:
+  * this process is unchanged (I THINK)
+    ... it continues to authenticate a new user email (as always)
+    ... the Device/User pre-exsits: we will morph it into a signed-in user
+
+> CALL IT: Force Re-Authentication (NOT Panic)
+- ?? Panic Button Process: <<< FORCE re-authentication for this email account (on any location and forced new deviceId)
+  * PARAMS: 
+    - logically a socket, which in turn identifies
+      * email of user  <<< KEY
+      * deviceId       <<< KEY
+      * clientAccessIP ... UNUSED (I think)
+  * PROCESS:
+    - mark deviceId as tainted
+      * which causes it to be regenerated automatically
+      * and invalidates any stored token (because will NOT match DB authenticated pairs)
+        ... causing them to have to re-authenticate (i.e. re-validate their email)
+    - optionally clear the PreAuthenticatedOnDB entries for this user (email)
+      ... could leave them but they are auto tainted
+    - auto sign-out ANY user on ANY device with this email account
+      >>> OR is it with this deviceId (I think this is appropriate)
+          - UNSURE: if so, we may want to insure the deviceId is NOT tainted in the sign-in process
+                    ... so as to do what?
+      ... this merely changes all in-memory user stores for this email (both client/server)
+      ... EVEN SO, they MUST sign-in (and email verify) to get it back
+      ... IF they simply REFRESH browser (going through preAuthenticate), their deviceId has been tainted, so it will be re-set -and- they start out as Guest
+          ?? I-THINK-THIS-IS-SOLVED: somehow must force MORE than just a sign-in BECAUSE we currently don't do anything with deviceId/clientAccessIP in sign-in process
+
 
 ## Work In Progress
 
@@ -190,7 +373,7 @@ ease-of-use for the end user.
    **FIX** (at least a step in the right direction): supplement with
      clientIP.
    
-   - Risk is minimal, unless user has access to your computer.
+   - Risk is minimal, unless user has access to your computer. <<< HOWEVER is there is a XSS hole I don't know about?
      * Public WiFi is not an issue.
      * Shared public computer is _(they MUST sign-off when done)_.
 
@@ -216,7 +399,7 @@ ease-of-use for the end user.
    **BOTTOM LINE**: access via:
    ```js
    // X-Forwarded-For: <client>, <proxy1>, <proxy2>
-   const clientRouterIP = socket.handshake.headers['x-forwarded-for'].split(',')[0];
+   const clientAccessIP = socket.handshake.headers['x-forwarded-for'].split(',')[0];
    ```
 
    ```

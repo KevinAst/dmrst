@@ -871,6 +871,7 @@ export async function preAuthenticate(socket) {
     // for a pre-existing device, the user is automatically accepted from their existing session
     // ... in other words, they are already running our app in a separate browser window,
     //     and we accept those credentials
+    // ??$$ NOT sure this is correct IN new philosophy
     device = getDevice(deviceIdFull);
     if (device) {
       log(`device ${deviceIdFull} pre-existed (re-used): `, prettyPrint({device}));
@@ -928,6 +929,7 @@ export async function preAuthenticate(socket) {
           // ... this will THWART "most" nefarious hackers (where deviceId/token are stolen through various techniques)
           //     ... the only case NOT caught here, is where the nefarious hacker is on the same WiFi access point (e.g. router)
           //         which means it's an "inside job"
+          // ??$$ this should be the standard (even above - may be the same)
           if (isEmailAuthenticatedOnIP(emailFromToken, clientAccessIP)) {
             acceptToken = true;
             logMsg      = `auth token ACCEPTED for signed-in user (email: ${emailFromToken}), because of prior authentication on clientAccessIP: ${clientAccessIP}`;
