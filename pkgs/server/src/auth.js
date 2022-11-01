@@ -656,7 +656,7 @@ function sendPreAuthentication(socket,     // the initiating socket
 
 
 //*-------------------------------------------------
-//* Return the clientAccessIP associated to the supplied socket.
+//* Return the clientAccessIP associated to the supplied socket header.
 //* 
 //* This IP is used by our authentication process in an attempt to
 //* identify nefarious usage (by hackers).
@@ -668,7 +668,7 @@ function sendPreAuthentication(socket,     // the initiating socket
 //* 
 //* RETURN: clientAccessIP <string> ... ex: '72.61.152.131'
 //*-------------------------------------------------
-function fetchClientAccessIP(socket) {
+function gleanClientAccessIPFromHeader(socket) {
   // found in the http header where the socket was created
   // ... X-Forwarded-For MAY CONTAIN: <client>, <proxy1>, <proxy2>
   //     HOWEVER, I am not accounting for proxy at this time
@@ -812,6 +812,9 @@ const deviceRoom = (deviceIdFull) => `device-${deviceIdFull}`;
  *   + getUserName(deviceIdFull|device|socket|socketId): string
  *********************************************************************************/
 export async function preAuthenticate(socket) {
+  const log = logger(`${logPrefix}:preAuthenticate`);
+
+  log(`processing client socket(${socket.id})`);
 
   // retain our socket.io server
   // ... this is a duplicate of registerAuthHandlers() ... above
@@ -820,28 +823,33 @@ export async function preAuthenticate(socket) {
     io = socket.server;
   }
 
-  // NOTE: For this process we do NOT use socket.io's standard
+  // adorn our socket obj with the following standard items
+  // ... clientType: 'ide'/'sys' - supplied by client app
+  //     ??## use this in analyses
+  socket.data.clientType = socket.handshake.auth.clientType
+  log(`using clientType (gleaned from client app): ${socket.data.clientType}`);
+  // ... userAgent: browser identification (from socket header)
+  //     EX: Chrome Browser:
+  //         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36'
+  //     ??## use this in analyses
+  socket.data.userAgent = socket.handshake.headers['user-agent'];
+  log(`using userAent (gleaned from socket header): ${socket.data.userAgent}`);
+
+  // NOTE: For deviceId and token, we do NOT use socket.io's standard
   //       auth.token (supplied at client socket creation time).
-  //       Rather we prefer an interactive server-2-client handshake
-  //       for our initialization protocol.  The reason for this is
+  //       Rather we use an interactive server-2-client handshake
+  //       for our initialization protocol.  The reason for this is:
   //       - Our client socket is long-lived.  It is created at the
   //         client app startup, and can span multiple users (via
   //         sign-out/sign-in).
+  //         NOTE: this alone rules out auth.token for BOTH deviceId -and- token
   //       - Because of this, we need the dynamics of a run-time API
-  //         (from server to the client) that can accommodate changes
-  //         in user identity, and even changes in the deviceId (done
+  //         (initiated from server to client) that can accommodate changes
+  //         in user identity, and even changes in the deviceId (used
   //         to thwart malicious activity).
-  //       - This is why we cannot utilize socket.io's standard
-  //         auth.token.  It is too static (not able to accommodate
+  //       - The standard socket.io auth.token is static in nature (defined 
+  //         at socket creation time) and therefore does NOT accommodate
   //         these dynamics).
-  // AI:    This philosophy may NO LONGER be true.
-  //        Seems like we are moving to have NO dynamics in the deviceId.
-  //        ANALYZE THIS FURTHER:
-  //         - possibly go back to socket.io's auth.token
-  //           and NIX the client interaction
-  //         - BE CAREFUL ... study all aspects before you do this
-
-  const log = logger(`${logPrefix}:preAuthenticate`);
 
   // working vars scoped outside of try/catch block for error processing recovery
   let clientAccessIP = '';        // the client IP (access point ... i.e. router)
@@ -850,20 +858,21 @@ export async function preAuthenticate(socket) {
   let device         = undefined; // the device obj, containing user, and managing concurrent client sessions (i.e. sockets - alias to browser window)
   let user           = undefined; // contained in device
 
-  try { // ... try/catch prevents client errors from crashing our server
+  // ?? the goal of this try/catch block is to fully define the working vars (above) - to be used in next step
+  try { // ... try/catch prevent errors from crashing our server (some errors may be from our client)
 
     // TEST ERROR CONDITION: 
     // ... also try NOT responding on client 'get-device-id' event (see client/src/user.js)
     //     resulting in time-out error
     // if (1==1) throw new Error('Test error in preAuthenticate');
 
-    // obtain the clientAccessIP associated to the supplied socket.
-    clientAccessIP = fetchClientAccessIP(socket);
-    log(`clientAccessIP from client socket(${socket.id}): ${clientAccessIP}`);
+    // obtain the clientAccessIP associated to the supplied socket header
+    clientAccessIP = gleanClientAccessIPFromHeader(socket);
+    log(`using clientAccessIP (gleaned from socket header): ${clientAccessIP}`);
 
     // obtain the deviceId of this client
     deviceId = await getDeviceIdFromClient(socket);
-    log(`deviceId from client socket(${socket.id}): ${deviceId}`);
+    log(`using deviceId (gleaned from client app): ${deviceId}`);
 
     // define deviceIdFull (combination of deviceId/clientAccessIP)
     deviceIdFull = encodeDeviceIdFull(deviceId, clientAccessIP);
@@ -871,7 +880,7 @@ export async function preAuthenticate(socket) {
     // for a pre-existing device, the user is automatically accepted from their existing session
     // ... in other words, they are already running our app in a separate browser window,
     //     and we accept those credentials
-    // ??$$ NOT sure this is correct IN new philosophy
+    // ??$$ in this case is it weird that we blindly use user, without seeing if it matches the token
     device = getDevice(deviceIdFull);
     if (device) {
       log(`device ${deviceIdFull} pre-existed (re-used): `, prettyPrint({device}));
@@ -880,6 +889,7 @@ export async function preAuthenticate(socket) {
 
     // on first-use of this device/user (i.e. a non-existent/not-active device)
     // ... we define a new device/user authenticated from optional saved client credentials
+    // ?? THIS ELSE must define user/device
     else {
       log(`device ${deviceIdFull} did NOT pre-exist (was not active) ... creating a new one`);
 
@@ -970,6 +980,8 @@ export async function preAuthenticate(socket) {
       device = createDevice(deviceIdFull, deviceId, clientAccessIP, user);
     }
 
+    // ?? what below is common to the catch(e) process?
+
     // setup the bi-directional relationship between Device(User)/Socket(window)
     setupDeviceSocketRelationship(device, socket);
 
@@ -983,8 +995,7 @@ export async function preAuthenticate(socket) {
     sendPreAuthentication(socket, userState, token);
   }
 
-  // try/catch prevent errors from crashing our server (some errors are from our client)
-  catch(e) {
+  catch(e) { // ... try/catch prevent errors from crashing our server (some errors may be from our client)
     // log this error (on server) and notify user of problem
     const errMsg = `*** ERROR *** Unexpected error in preAuthenticate - socket: '${socket.id}' ... ERROR: ${e}`;
     const usrMsg = 'A problem occurred in our pre-authentication process (see logs).  ' +
@@ -1018,6 +1029,7 @@ export async function preAuthenticate(socket) {
     // if (!device) {
     //   device = createDevice(deviceId, user);
     // }
+
     // YES:
     // 1. start from scratch and utilize content that will create temporary device/user that is an unregistered guest user
     deviceId     = 'SOCKET-' + socket.id; // ... use socket.id (very temporary ... it's all we have)

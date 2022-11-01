@@ -1,8 +1,12 @@
-import AppIDE from './App.svelte';
 import '../../core/util/ErrorExtensionPolyfill'; // value-added Error extensions, providing ability to handle ALL errors more generically
-import '../../sockets'; // configure client app's websocket initiation
+import setupSocketConnection from '../../sockets';
+import App                   from './App.svelte';
 
-const app = new AppIDE({
+// configure client app's websocket initiation
+setupSocketConnection('ide');
+
+// create our App GUI
+const app = new App({
 	target: document.body,
 });
 
