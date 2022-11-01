@@ -833,7 +833,7 @@ export async function preAuthenticate(socket) {
   //         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36'
   //     ??## use this in analyses
   socket.data.userAgent = socket.handshake.headers['user-agent'];
-  log(`using userAent (gleaned from socket header): ${socket.data.userAgent}`);
+  log(`using userAgent (gleaned from socket header): ${socket.data.userAgent}`);
 
   // NOTE: For deviceId and token, we do NOT use socket.io's standard
   //       auth.token (supplied at client socket creation time).
