@@ -35,6 +35,9 @@ pids
 # node dependencies
 node_modules/
 
+# temporary persistence folder TILL we hook into DB
+PriorAuthDB
+
 # not interested in package-lock.json for this repo (prevents mucho automated PR)
 package-lock.json
 

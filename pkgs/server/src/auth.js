@@ -18,9 +18,15 @@ import {socketAckFn_timeout} from './core/util/socketIOUtils';
 import {prettyPrint}         from './util/prettyPrint';
 import {msgClient}           from './chat';
 import randomNumber          from 'random-number-csprng';
+import storage               from 'node-persist'; // AI: temp lib used to persist PriorAuthDB TILL we hook into DB
 import logger from './core/util/logger';
 const  logPrefix = 'vit:server:auth';
 const  log = logger(`${logPrefix}`);
+
+// initialize our persistent library
+await storage.init({
+  dir: 'PriorAuthDB', // relative path to persist
+});
 
 // the socket.io server in control
 let io = null;
@@ -154,7 +160,7 @@ export default function registerAuthHandlers(socket) {
   //*           }
   //* THROW:  Error (via ack) with optional e.userMsg (when e.isExpected()) for expected user error (ex: invalid email)
   //*---------------------------------------------------------------------------
-  socket.on('sign-in-verification', (verificationCode, ack) => {
+  socket.on('sign-in-verification', async (verificationCode, ack) => {
     const log = logger(`${logPrefix}:sign-in-verification`);
     log(`Servicing 'sign-in-verification' request/response on socket: ${socket.id}`);
 
@@ -213,11 +219,10 @@ export default function registerAuthHandlers(socket) {
     const userState = extractUserState(user);
     broadcastUserAuthChanged(socket, userState);
 
-    // retain verification of user (email) on device / client access point
-    addPriorAuthDB(user.email,
-                   socket.data.deviceId,
-                   socket.data.clientAccessIP);
-
+    // persist verification of user (email) on device / client access point
+    await addPriorAuthDB(user.email,
+                         socket.data.deviceId,
+                         socket.data.clientAccessIP);
 
     // generate the token to be sent to our client
     const token = encodeUserToken(user);
@@ -284,7 +289,7 @@ export default function registerAuthHandlers(socket) {
   //*           }
   //* THROW:  Error (via ack) with optional e.userMsg (when e.isExpected()) for expected user error (ex: User NOT signed-in)
   //*---------------------------------------------------------------------------
-  socket.on('sign-out', (ack) => {
+  socket.on('sign-out', async (ack) => {
     const log = logger(`${logPrefix}:sign-out`);
     log(`Servicing 'sign-out' request/response via socket: ${socket.id}`);
 
@@ -311,6 +316,11 @@ export default function registerAuthHandlers(socket) {
     }
 
     // KEY: user sign-out successful - update our server state
+
+    // clear prior verification of user (email) for ALL device / client access point
+    await clearPriorAuthDB(user.email);
+
+    // update our user object
     user.email = '';
 
     // re-populate all other user state (via user profile / enablements)
@@ -343,16 +353,9 @@ export default function registerAuthHandlers(socket) {
 //******************************************************************************
 //******************************************************************************
 
-//*---------------------------------------------------------
-//* DB Op:
-//* Fetch email previously authenticated entries for the given email
-//* (per our persistent user-DB registry)?
-//* RETURN: [ [deviceId, clientAccessIP] ... ] -or- KISS and use a concated string
-//*---------------------------------------------------------
-// ?? internal fn (used below) ... this is kinda the raw func of localStorage
-function getPriorAuthDB(email) {
-  return true; // AI: 444 - implement via persistent DB
-}
+// PriorAuthDB: currently mimicking localStorage till we have a full DB implementation
+//   key:   email
+//   value: [deviceIdFull, ...] <<< all devices previously authenticated on
 
 //*---------------------------------------------------------
 //* DB Op:
@@ -360,10 +363,13 @@ function getPriorAuthDB(email) {
 //* supplied identifiers (per our persistent user-DB registry)?
 //* RETURN: boolean
 //*---------------------------------------------------------
-function hasPriorAuthDB(email,
-                        deviceId,
-                        clientAccessIP) {
-  return true; // AI: 444 - implement via persistent DB
+async function hasPriorAuthDB(email,
+                              deviceId,
+                              clientAccessIP) {
+  // return true; // DO THIS - for hardcoded rendition
+  const deviceIdFull = encodeDeviceIdFull(deviceId, clientAccessIP);
+  const allDevices   = await storage.getItem(email) || [];
+  return allDevices.includes(deviceIdFull);
 }
 
 //*---------------------------------------------------------
@@ -372,12 +378,17 @@ function hasPriorAuthDB(email,
 //* (per our persistent user-DB registry).
 //* RETURN: void
 //*---------------------------------------------------------
-// ?? invoked from sign-in
-function addPriorAuthDB(email,
-                        deviceId,
-                        clientAccessIP) {
-  // ? no-op if entry already there
-  // AI: 444 - implement via persistent DB
+async function addPriorAuthDB(email,
+                              deviceId,
+                              clientAccessIP) {
+  // return; // DO THIS - for hardcoded rendition (no-op)
+  const deviceIdFull = encodeDeviceIdFull(deviceId, clientAccessIP);
+  const allDevices   = await storage.getItem(email) || [];
+
+  // add if not already there
+  if (!allDevices.includes(deviceIdFull)) {
+    await storage.setItem(email, [...allDevices, deviceIdFull]);
+  }
 }
 
 //*---------------------------------------------------------
@@ -386,9 +397,14 @@ function addPriorAuthDB(email,
 //* prior identifier (per our persistent user-DB registry).
 //* RETURN: void
 //*---------------------------------------------------------
-// ?? invoked from sign-out
-function clearPriorAuthDB(email) {
-  // AI: 444 - implement via persistent DB
+async function clearPriorAuthDB(email) {
+  // return;  // DO THIS - for hardcoded rendition (no-op)
+  const allDevices = await storage.getItem(email);
+
+  // remove if exists
+  if (allDevices) {
+    await storage.removeItem(email);
+  }
 }
 
 
@@ -959,7 +975,7 @@ export async function preAuthenticate(socket) {
           // ... this will THWART "most" nefarious hackers (where deviceId/token are stolen through various techniques)
           //     ... the only case NOT caught here, is where the nefarious hacker is on the same WiFi access point (e.g. router)
           //         which means it's an "inside job"
-          if (hasPriorAuthDB(emailFromToken, deviceId, clientAccessIP)) {
+          if (await hasPriorAuthDB(emailFromToken, deviceId, clientAccessIP)) {
             acceptToken = true;
             logMsg      = `auth token ACCEPTED for previously signed-in user (email: ${emailFromToken}), because of prior authentication on clientAccessIP: ${clientAccessIP}`;
           }
@@ -983,7 +999,7 @@ export async function preAuthenticate(socket) {
         }
 
         // log what just happened
-        // ... NO: should we send message to user as to what happened in preAuth
+        // ... NO: should we send message to user as to what happened in preAuth ... ?? 666 possibly yes in the case of not authenticated because of new clientAccessIP
         log(logMsg, {
           socket: socket.id,
           clientAccessIP,
@@ -1034,7 +1050,7 @@ export async function preAuthenticate(socket) {
     // notify user of problem
     const usrMsg = 'A problem occurred in our pre-authentication process (see logs).  ' +
                    'For the moment, you may continue as a "Guest" user.  ' +
-                   'Try to reconnect at a later point by refreshing your broswer.  ' +
+                   'Try to reconnect at a later point by refreshing your browser.  ' +
                    'If this problem persists, reach out to our support staff.';
     msgClient(socket, usrMsg, errMsg);
   }
