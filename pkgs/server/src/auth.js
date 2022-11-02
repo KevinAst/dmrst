@@ -968,6 +968,7 @@ export async function preAuthenticate(socket) {
         // ... see comments (below)
         let acceptToken = false;
         let logMsg      = 'auth token message to-be-defined (should never see this unless problem in logic)';
+        let userMsg     = '';
 
         // when this token represents a signed-in user ... having a user account (i.e. email)
         if (emailFromToken) {
@@ -982,6 +983,7 @@ export async function preAuthenticate(socket) {
           else {
             acceptToken = false;
             logMsg      = `auth token "NOT" ACCEPTED for previously signed-in user (email: ${emailFromToken}), because they were NEVER previously authenticated on clientAccessIP: ${clientAccessIP}`;
+            userMsg     = 'you must explicitly sign-in because you have not authenticated from this internet access point';
           }
         }
 
@@ -998,8 +1000,12 @@ export async function preAuthenticate(socket) {
           user.guestName = guestNameFromToken;
         }
 
+        // communicate to user (when needed)
+        if (userMsg) {
+          msgClient(socket, userMsg);
+        }
+
         // log what just happened
-        // ... NO: should we send message to user as to what happened in preAuth ... ?? 666 possibly yes in the case of not authenticated because of new clientAccessIP
         log(logMsg, {
           socket: socket.id,
           clientAccessIP,
