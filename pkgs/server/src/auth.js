@@ -83,7 +83,7 @@ export default function registerAuthHandlers(socket) {
     broadcastUserAuthChanged(socket, userState);
 
     // generate the token to be sent to our client
-    const token = encodeUserToken(user, socket.data.deviceId);
+    const token = encodeUserToken(user);
 
     // acknowledge success
     // ... for the initiating client, this is how it is updated
@@ -220,7 +220,7 @@ export default function registerAuthHandlers(socket) {
 
 
     // generate the token to be sent to our client
-    const token = encodeUserToken(user, socket.data.deviceId);
+    const token = encodeUserToken(user);
 
     // acknowledge success
     // ... for the initiating client, this is how it is updated
@@ -322,7 +322,7 @@ export default function registerAuthHandlers(socket) {
     broadcastUserAuthChanged(socket, userState);
 
     // generate the token to be sent to our client
-    const token = encodeUserToken(user, socket.data.deviceId);
+    const token = encodeUserToken(user);
 
     // acknowledge success
     // ... for the initiating socket, this is how it is update
@@ -584,13 +584,13 @@ function populateUserProfile(user) {
 const tokenDelim = '#/#';
 
 //*---------------------------------------------------------
-//* Generate an encrypted user token from the supplied user/deviceId
+//* Generate an encrypted user token from the supplied user
 //* ... suitable to be retained on the client
 //* ... and used in our preAuthenticate process
 //* RETURN: void
 //*---------------------------------------------------------
-function encodeUserToken(user, deviceId) {
-  const token = user.email + tokenDelim + user.guestName + tokenDelim + deviceId;
+function encodeUserToken(user) {
+  const token = user.email + tokenDelim + user.guestName;
   // AI: encrypt
   return token;
 }
@@ -599,12 +599,12 @@ function encodeUserToken(user, deviceId) {
 //* Extract contents of the supplied encrypted user token
 //* ... provided by our client
 //* ... and used in our preAuthenticate process
-//* RETURN: {email, guestName, deviceId}
+//* RETURN: {email, guestName}
 //*---------------------------------------------------------
 function decodeUserToken(token) {
   // AI: decrypt token
-  const [email, guestName, deviceId] = token.split(tokenDelim);
-  return {email, guestName, deviceId};
+  const [email, guestName] = token.split(tokenDelim);
+  return {email, guestName};
 }
 
 //*-------------------------------------------------
@@ -948,25 +948,10 @@ export async function preAuthenticate(socket) {
       user = createUser();
 
       // attempt to authenticate from saved client credentials ... if any (i.e. an auth token)
-      // AI: ??111 I think I want to NIX deviceIdFromToken - ONLY used in commented out code (below)
-      const token = await getAuthTokenFromClient(socket); // email/guestName/deviceId
+      const token = await getAuthTokenFromClient(socket); // email/guestName
       if (token) {
-        const {email: emailFromToken, guestName: guestNameFromToken, deviceId: deviceIdFromToken} = decodeUserToken(token);
-        log(`client token: `, {email: emailFromToken, guestName: guestNameFromToken, deviceId: deviceIdFromToken});
-
-        // AI: ??111 I think I want to NIX deviceIdFromToken
-        //? //        it is a lame check ... if the user can access the localStorage token, they can just as easily access the localStorage deviceId
-        //? // if the deviceId matches, we accept the credentials of the token
-        //? // ... otherwise we ignore the token and start out as a Guest user
-        //? // >>> KEY: This is a "minimal" protection against any
-        //? //          malicious attempt to steal the token if a hacker
-        //? //          had access to it in some way.  The deviceId should
-        //? //          always match (for a given browser instance).
-        //? if (deviceIdFromToken === deviceId) { // AI: or priorDeviceId (when reset - above) ... may be NIXed
-        //?   log(`client token deviceId matched (accepting credentials): `, {deviceIdFromToken, deviceId});
-        //?   user.email     = emailFromToken;
-        //?   user.guestName = guestNameFromToken;
-        //? }
+        const {email: emailFromToken, guestName: guestNameFromToken} = decodeUserToken(token);
+        log(`client token: `, {email: emailFromToken, guestName: guestNameFromToken});
 
         // we conditionally accept the token credentials
         // ... see comments (below)
@@ -1011,7 +996,6 @@ export async function preAuthenticate(socket) {
           token: {
             email:     emailFromToken, 
             guestName: guestNameFromToken,
-            deviceId:  deviceIdFromToken,
           },
         });
       } // ... end of token processing
@@ -1031,7 +1015,7 @@ export async function preAuthenticate(socket) {
     // generate the token to be sent to our client
     // ... we do this because our deviceId may have changed ?? even if changed, do we really want preAuth to reflect this
     // ??$$ 333 I'm thinking that NOW we do NOT change the token from preAuth ... can simply do this by NOT supplying token in sendPreAuthentication()
-    const token = encodeUserToken(user, socket.data.deviceId);
+    const token = encodeUserToken(user);
 
     // communicate the pre-authentication to this client (socket)
     const userState = extractUserState(user);
