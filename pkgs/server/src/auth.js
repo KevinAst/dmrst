@@ -900,8 +900,8 @@ export async function preAuthenticate(socket) {
   let device         = undefined; // the device obj, containing user, and managing concurrent client sessions (i.e. sockets - alias to browser window)
   let user           = undefined; // contained in device
 
-  // ?? the goal of this try/catch block is to fully define the working vars (above) - to be used in next step
-  try { // ... try/catch prevent errors from crashing our server (some errors may be from our client)
+  // NOTE: the goal of this try/catch block is to fully define the working vars (above) - to be used in subsequent steps
+  try { // ... try/catch preventing errors from crashing our server (some errors may be from our client)
 
     // TEST ERROR CONDITION: 
     // ... also try NOT responding on client 'get-device-id' event (see client/src/user.js)
@@ -952,6 +952,7 @@ export async function preAuthenticate(socket) {
         // ... see comments (below)
         let acceptToken = false;
         let logMsg      = 'auth token message to-be-defined (should never see this unless problem in logic)';
+
         // when this token represents a signed-in user ... having a user account (i.e. email)
         if (emailFromToken) {
           // only accept signed-in users when the account has been previously authenticated on given deviceId clientAccessIP
@@ -967,6 +968,7 @@ export async function preAuthenticate(socket) {
             logMsg      = `auth token "NOT" ACCEPTED for previously signed-in user (email: ${emailFromToken}), because they were NEVER previously authenticated on clientAccessIP: ${clientAccessIP}`;
           }
         }
+
         // unconditionally accept any token for signed-out users
         // ... it contains nothing sensitive (only guestName)
         else {
@@ -979,7 +981,9 @@ export async function preAuthenticate(socket) {
           user.email     = emailFromToken;
           user.guestName = guestNameFromToken;
         }
+
         // log what just happened
+        // ... NO: should we send message to user as to what happened in preAuth
         log(logMsg, {
           socket: socket.id,
           clientAccessIP,
@@ -990,7 +994,6 @@ export async function preAuthenticate(socket) {
             guestName: guestNameFromToken,
           },
         });
-        // ?? 666 consider sending message to user as to what happened in preAuth
 
       } // ... end of token processing ... for NO token we use the unregistered guest user
 
@@ -1004,17 +1007,9 @@ export async function preAuthenticate(socket) {
 
     } // ... end of: CREATE a new user/device, on first-use (for a not-previously active user/device)
 
-    // AI: 777 following logic is common to BOTH non-error and error block ... CONSIDER placing it in finally
+  } // ... end of: try
 
-    // setup the bi-directional relationship between Device(User)/Socket(window)
-    setupDeviceSocketRelationship(device, socket);
-
-    // communicate the pre-authentication to this client (socket)
-    const userState = extractUserState(user);
-    sendPreAuthentication(socket, userState); // ... NO token is supplied, so it is NOT updated on client
-  }
-
-  catch(e) { // ... try/catch prevent errors from crashing our server (some errors may be from our client)
+  catch(e) { // ... try/catch preventing errors from crashing our server (some errors may be from our client)
 
     // log this error (on server)
     const errMsg = `*** ERROR *** Unexpected error in preAuthenticate - socket: '${socket.id}' ... ERROR: ${e}`;
@@ -1036,15 +1031,6 @@ export async function preAuthenticate(socket) {
     user         = createUser(); // ... defaults to: unregistered guest user
     device       = createDevice(deviceIdFull, deviceId, clientAccessIP, user);
 
-    // ... following logic is identical to that of the non-error block (above)
-
-    // setup the bi-directional relationship between Device(User)/Socket(window)
-    setupDeviceSocketRelationship(device, socket);
-
-    // communicate the pre-authentication to this client (socket)
-    const userState = extractUserState(user);
-    sendPreAuthentication(socket, userState); // ... NO token is supplied, so it is NOT updated on client
-
     // notify user of problem
     const usrMsg = 'A problem occurred in our pre-authentication process (see logs).  ' +
                    'For the moment, you may continue as a "Guest" user.  ' +
@@ -1053,9 +1039,16 @@ export async function preAuthenticate(socket) {
     msgClient(socket, usrMsg, errMsg);
   }
 
-  finally { // ... finish up setting up our critical structures
+  finally { // ... finish up setting up our critical structures (common to BOTH non-error and error block)
 
     // AI: consider error conditions in this code
+
+    // setup the bi-directional relationship between Device(User)/Socket(window)
+    setupDeviceSocketRelationship(device, socket);
+
+    // communicate the pre-authentication to this client (socket)
+    const userState = extractUserState(user);
+    sendPreAuthentication(socket, userState); // ... NO token is supplied, so it is NOT updated on client
 
     // log all devices AFTER setup is complete
     logAllDevices('All Devices AFTER setup', log)
