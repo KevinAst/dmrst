@@ -936,13 +936,6 @@ export async function preAuthenticate(socket) {
     else {
       log(`device ${deviceIdFull} did NOT pre-exist (was not active) ... creating a new one`);
 
-      // AI: ??222 CONSIDER NIXING any reset of the deviceId, ALONG with the reset function (here, and the client's implementation)
-      // request the deviceId to be reset
-      // ... this minimizes malicious attempts to re-use a deviceId
-      //     when they have access to the browser's localStorage
-      //     (where deviceId is stored)
-      //? deviceId = await resetDeviceIdOnClient(socket);
-
       // create our new user
       // ... defaults to: unregistered guest user
       user = createUser();
