@@ -922,26 +922,27 @@ export async function preAuthenticate(socket) {
     // for a pre-existing device, the user is automatically accepted from their existing session
     // ... in other words, they are already running our app in a separate browser window,
     //     and we accept those credentials
-    // ??$$ RISK: if hacker steals deviceId -AND- is on same clientAccessIP -AND- real user is active -THEN- they are IN LIKE FLYNN (without any other checks)
-    //            can potentially detect this in analyzeNefariousActivity() IF they have different userAgent (browser)
-    //            and they will be "ousted" when the "real" user signs-out
+    //     RISK: if hacker steals deviceId/token -AND- is on same clientAccessIP
+    //           -THEN- they are IN LIKE FLYNN (without any other checks)
+    //           AI: we can potentially detect this in analyzeNefariousActivity()
+    //               IF they have different userAgent (browser)
+    //           ALSO NOTE: They will be "ousted" when the "real" user signs-out
+    //                      BECAUSE the "real" user's deviceId will be reset
     device = getDevice(deviceIdFull);
     if (device) {
       log(`device ${deviceIdFull} pre-existed (re-used): `, prettyPrint({device}));
       user = device.user;
     }
 
-    // on first-use of this device/user (i.e. a non-existent/not-active device)
-    // ... we define a new device/user authenticated from optional saved client credentials
-    // ?? THIS ELSE must define user/device
+    // CREATE a new user/device, on first-use (for a not-previously active user/device)
+    // ... potentially pre-authenticated from saved client credentials (an auth token - if any)
     else {
       log(`device ${deviceIdFull} did NOT pre-exist (was not active) ... creating a new one`);
 
-      // create our new user
-      // ... defaults to: unregistered guest user
+      // create our new user DEFAULTING to an unregistered guest user
       user = createUser();
 
-      // attempt to authenticate from saved client credentials ... if any (i.e. an auth token)
+      // attempt to authenticate from saved client credentials (an auth token - if any)
       const token = await getAuthTokenFromClient(socket); // email/guestName
       if (token) {
         const {email: emailFromToken, guestName: guestNameFromToken} = decodeUserToken(token);
@@ -950,30 +951,27 @@ export async function preAuthenticate(socket) {
         // we conditionally accept the token credentials
         // ... see comments (below)
         let acceptToken = false;
-        // ?? 555 regarding SUSPECT HACKER ... this could simply be moving laptop from one router to another ... may be too harsh
-        // ?? another reason to NOT change the token from preAuth
-        // ?? 666 consider sending message to user as to what happened in preAuth
-        let logMsg      = `auth token "NOT" ACCEPTED for signed-in user (email: ${emailFromToken}), because they were NEVER previously authenticated on clientAccessIP: ${clientAccessIP} ... SUSPECT HACKER stole deviceId/token`;
-        let logIt       = log.force;
-        // when this token represents a signed-in user ... having a user account aspect (i.e. email)
+        let logMsg      = 'auth token message to-be-defined (should never see this unless problem in logic)';
+        // when this token represents a signed-in user ... having a user account (i.e. email)
         if (emailFromToken) {
           // only accept signed-in users when the account has been previously authenticated on given deviceId clientAccessIP
           // ... this will THWART "most" nefarious hackers (where deviceId/token are stolen through various techniques)
           //     ... the only case NOT caught here, is where the nefarious hacker is on the same WiFi access point (e.g. router)
           //         which means it's an "inside job"
-          // ??$$ this should be the standard (even above - may be the same)
           if (hasPriorAuthDB(emailFromToken, deviceId, clientAccessIP)) {
             acceptToken = true;
-            logMsg      = `auth token ACCEPTED for signed-in user (email: ${emailFromToken}), because of prior authentication on clientAccessIP: ${clientAccessIP}`;
-            logIt       = log; // un-forced
+            logMsg      = `auth token ACCEPTED for previously signed-in user (email: ${emailFromToken}), because of prior authentication on clientAccessIP: ${clientAccessIP}`;
+          }
+          else {
+            acceptToken = false;
+            logMsg      = `auth token "NOT" ACCEPTED for previously signed-in user (email: ${emailFromToken}), because they were NEVER previously authenticated on clientAccessIP: ${clientAccessIP}`;
           }
         }
         // unconditionally accept any token for signed-out users
         // ... it contains nothing sensitive (only guestName)
         else {
           acceptToken = true;
-          logMsg      = `auth token ACCEPTED for signed-out user (no sensitive data here ... only guestName: ${guestNameFromToken})`;
-          logIt       = log; // un-forced
+          logMsg      = `auth token ACCEPTED for signed-out user ... no sensitive data here (only guestName): ${guestNameFromToken})`;
         }
 
         // THIS IS IT: conditionally pull the trigger on token acceptance
@@ -982,7 +980,7 @@ export async function preAuthenticate(socket) {
           user.guestName = guestNameFromToken;
         }
         // log what just happened
-        logIt(logMsg, {
+        log(logMsg, {
           socket: socket.id,
           clientAccessIP,
           deviceId,
@@ -992,16 +990,21 @@ export async function preAuthenticate(socket) {
             guestName: guestNameFromToken,
           },
         });
-      } // ... end of token processing
-        
+        // ?? 666 consider sending message to user as to what happened in preAuth
+
+      } // ... end of token processing ... for NO token we use the unregistered guest user
+
+      // NOW: finish the setup of the newly created user
+
       // re-populate all other user state (via user profile / enablements)
       populateUserProfile(user);
 
-      // create our new device (with the contained user)
+      // create our new device (containing our newly created user)
       device = createDevice(deviceIdFull, deviceId, clientAccessIP, user);
-    }
 
-    // ?? what below is common to the catch(e) process?
+    } // ... end of: CREATE a new user/device, on first-use (for a not-previously active user/device)
+
+    // AI: 777 following logic is common to BOTH non-error and error block ... CONSIDER placing it in finally
 
     // setup the bi-directional relationship between Device(User)/Socket(window)
     setupDeviceSocketRelationship(device, socket);
@@ -1012,59 +1015,49 @@ export async function preAuthenticate(socket) {
   }
 
   catch(e) { // ... try/catch prevent errors from crashing our server (some errors may be from our client)
-    // log this error (on server) and notify user of problem
+
+    // log this error (on server)
     const errMsg = `*** ERROR *** Unexpected error in preAuthenticate - socket: '${socket.id}' ... ERROR: ${e}`;
-    const usrMsg = 'A problem occurred in our pre-authentication process (see logs).  ' +
-                   'For the moment, you may continue as a "Guest" user.  ' +
-                   'Try to reconnect or sign-in at a later point.  ' +
-                   'If this problem persists, reach out to our support staff.';
     log.f(errMsg, e);
-    msgClient(socket, usrMsg, errMsg);
 
-    // INSURE our critical structure has been established
-    // ... even on error conditions
-    // ... at minimum a guest user
-    // ... this structure is assumed throughout our code, and therefore critical
-    // ... NOTE: this logic mimics that of a successful preAuthenticate (see above)
+    // EVEN ON ERROR, we must INSURE this critical structure has been established
+    // ... this structure is assumed throughout our code, and is therefore critical
+    // NOTE: this logic mimics that of a successful preAuthenticate (see above)
 
-    // NO: With all the conditional logic (above) in establishing this structure, 
-    //     it is thought to be MORE appropriate to strictly use a Guest user (from scratch),
-    //     rather than a miss-mash of re-using existing device/user.
-    //     ... it is confusing when (in the rare case) where multiple windows are signed-in
-    //         and errors causes the re-use of device/user
-    // 1. progressively use any content gleaned before error occurred
-    // ... deviceId: use socket.id (very temporary it's all we have)
-    // if (!deviceId) {
-    //   deviceId = socket.id;
-    // }
-    // // ... user: use unregistered guest user
-    // if (!user) {
-    //   user = createUser();
-    // }
-    // // ... device: create a new one
-    // if (!device) {
-    //   device = createDevice(deviceId, user);
-    // }
+    // NOTE: With all the conditional logic (above) in establishing this structure, 
+    //       it is thought to be MORE appropriate to start from scratch (using an unregistered Guest user),
+    //       rather than a miss-mash of re-use of state from non-error block (above).
+    //       ... it would be confusing when (in the rare case) where multiple windows are signed-in
+    //           and errors causes the re-use of device/user
 
-    // YES:
-    // 1. start from scratch and utilize content that will create temporary device/user that is an unregistered guest user
-    deviceId     = 'SOCKET-' + socket.id; // ... use socket.id (very temporary ... it's all we have)
+    // start from scratch and use content that will create temporary device/user that is an unregistered guest user
+    deviceId     = 'SOCKET-FROM-ERROR-' + socket.id; // ... use socket.id (very temporary ... it's all we have)
     deviceIdFull = encodeDeviceIdFull(deviceId, clientAccessIP);
     user         = createUser(); // ... defaults to: unregistered guest user
     device       = createDevice(deviceIdFull, deviceId, clientAccessIP, user);
 
-    // 2. setup the bi-directional relationship between Device(User)/Socket(window)
+    // ... following logic is identical to that of the non-error block (above)
+
+    // setup the bi-directional relationship between Device(User)/Socket(window)
     setupDeviceSocketRelationship(device, socket);
 
-    // 3. communicate the pre-authentication to this client (socket)
-    //    ... WITHOUT having client update their token
-    //        BECAUSE this state is temporary till error resolved
+    // communicate the pre-authentication to this client (socket)
     const userState = extractUserState(user);
     sendPreAuthentication(socket, userState); // ... NO token is supplied, so it is NOT updated on client
+
+    // notify user of problem
+    const usrMsg = 'A problem occurred in our pre-authentication process (see logs).  ' +
+                   'For the moment, you may continue as a "Guest" user.  ' +
+                   'Try to reconnect at a later point by refreshing your broswer.  ' +
+                   'If this problem persists, reach out to our support staff.';
+    msgClient(socket, usrMsg, errMsg);
   }
 
-  // log all devices AFTER setup is complete
-  finally {
+  finally { // ... finish up setting up our critical structures
+
+    // AI: consider error conditions in this code
+
+    // log all devices AFTER setup is complete
     logAllDevices('All Devices AFTER setup', log)
   }
 }
