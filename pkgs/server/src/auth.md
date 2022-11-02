@@ -308,6 +308,7 @@ was done remotely (via XSS) or if it was from access to the physical machine?
      I think I can just do necessary things in an explicit sign-out process
      1. force ALL active users of that email to sign-out
         ... done via active socket connections
+        ... EVEN spans multiple Devices (for good measure)
      2. for the initiatator, reset the deviceID
         ... this will thwart any thief, as their copied deviceId is no longer valid
      3. clear the acceptable DB entries for that email
@@ -317,7 +318,7 @@ was done remotely (via XSS) or if it was from access to the physical machine?
      >> ALSO, may want to FORCE logout on some timeout of token
 
 - Maintain a persistent DB to:
-  * ?? retain acceptable (i.e. authenticated) email/deviceId+clientAccessIP pairs
+  * ?? retain acceptable (i.e. authenticated) email/deviceId/clientAccessIP pairs
   * ?? mark tainted deviceIds <<< PROB NOT NEEDED ... if we simply CLEAR table above
 
 

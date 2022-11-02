@@ -65,9 +65,18 @@ export default function setupSocketConnection(clientType) { // 'ide' or 'sys'
   // NOTE: socket.io will auto-reconnect when the problem is resolved
   //       USING the same client-side socket object instance (with a different socket.id)
   //       AS OPPOSED TO the server-side, which is a brand new socket object instance
-  socket.on('disconnect', () => {
-    log(`client's socket connection to server has been lost: ${socket.id} / connected: ${socket.connected}`);
+  socket.on('disconnect', (reason) => {
+    log(`client's socket connection to server has been lost: ${socket.id} / connected: ${socket.connected} ???? reason: ${reason}`);
     alert.display('Our server connection has been lost.');
+
+    // we re-connect manually when the server initiated the disconnect
+    // ... this is ONLY done in our sign-off process
+    //     - it allows the "reset" deviceId to be reflected in the server structures
+    //     - AND thwarts "active" hackers (living in the same client access point) that have stolen the deviceId
+    // ?? do this when resetting deviceId (through 
+    //? if (reason === 'io server disconnect') {
+    //?   socket.connect();
+    //? }
   });
 
   // register ALL APP socket event listeners

@@ -213,6 +213,12 @@ export default function registerAuthHandlers(socket) {
     const userState = extractUserState(user);
     broadcastUserAuthChanged(socket, userState);
 
+    // retain verification of user (email) on device / client access point
+    addPriorAuthDB(user.email,
+                   socket.data.deviceId,
+                   socket.data.clientAccessIP);
+
+
     // generate the token to be sent to our client
     const token = encodeUserToken(user, socket.data.deviceId);
 
@@ -338,17 +344,52 @@ export default function registerAuthHandlers(socket) {
 //******************************************************************************
 
 //*---------------------------------------------------------
-//* Has supplied email been previously authenticated on the
-//* supplied clientAccessIP (per our persistent user-DB registry)?
-//* RETURN: boolean
+//* DB Op:
+//* Fetch email previously authenticated entries for the given email
+//* (per our persistent user-DB registry)?
+//* RETURN: [ [deviceId, clientAccessIP] ... ] -or- KISS and use a concated string
 //*---------------------------------------------------------
-function isEmailAuthenticatedOnIP(email, clientAccessIP) {
-  // AI: ULTIMATELY, implement via a DB operation
-  // AI: ?? 444 TEMPORARILY hard-code, for initial testing, consider implementing in localStorage
-  return true;
+// ?? internal fn (used below) ... this is kinda the raw func of localStorage
+function getPriorAuthDB(email) {
+  return true; // AI: 444 - implement via persistent DB
 }
 
-// AI: ?? 444 must implement API to maintain: email/clientAccessIPs
+//*---------------------------------------------------------
+//* DB Op:
+//* Has given email been previously authenticated on the
+//* supplied identifiers (per our persistent user-DB registry)?
+//* RETURN: boolean
+//*---------------------------------------------------------
+function hasPriorAuthDB(email,
+                        deviceId,
+                        clientAccessIP) {
+  return true; // AI: 444 - implement via persistent DB
+}
+
+//*---------------------------------------------------------
+//* DB Op:
+//* Add supplied identifiers to given email (create on first usage) as being previously authenticated
+//* (per our persistent user-DB registry).
+//* RETURN: void
+//*---------------------------------------------------------
+// ?? invoked from sign-in
+function addPriorAuthDB(email,
+                        deviceId,
+                        clientAccessIP) {
+  // ? no-op if entry already there
+  // AI: 444 - implement via persistent DB
+}
+
+//*---------------------------------------------------------
+//* DB Op:
+//* Clear given email entry as being authenticated on any
+//* prior identifier (per our persistent user-DB registry).
+//* RETURN: void
+//*---------------------------------------------------------
+// ?? invoked from sign-out
+function clearPriorAuthDB(email) {
+  // AI: 444 - implement via persistent DB
+}
 
 
 //*---------------------------------------------------------
@@ -880,7 +921,9 @@ export async function preAuthenticate(socket) {
     // for a pre-existing device, the user is automatically accepted from their existing session
     // ... in other words, they are already running our app in a separate browser window,
     //     and we accept those credentials
-    // ??$$ in this case is it weird that we blindly use user, without seeing if it matches the token
+    // ??$$ RISK: if hacker steals deviceId -AND- is on same clientAccessIP -AND- real user is active -THEN- they are IN LIKE FLYNN (without any other checks)
+    //            can potentially detect this in analyzeNefariousActivity() IF they have different userAgent (browser)
+    //            and they will be "ousted" when the "real" user signs-out
     device = getDevice(deviceIdFull);
     if (device) {
       log(`device ${deviceIdFull} pre-existed (re-used): `, prettyPrint({device}));
@@ -935,12 +978,12 @@ export async function preAuthenticate(socket) {
         let logIt       = log.force;
         // when this token represents a signed-in user ... having a user account aspect (i.e. email)
         if (emailFromToken) {
-          // only accept signed-in users when the account has been previously authenticated on this clientAccessIP
+          // only accept signed-in users when the account has been previously authenticated on given deviceId clientAccessIP
           // ... this will THWART "most" nefarious hackers (where deviceId/token are stolen through various techniques)
           //     ... the only case NOT caught here, is where the nefarious hacker is on the same WiFi access point (e.g. router)
           //         which means it's an "inside job"
           // ??$$ this should be the standard (even above - may be the same)
-          if (isEmailAuthenticatedOnIP(emailFromToken, clientAccessIP)) {
+          if (hasPriorAuthDB(emailFromToken, deviceId, clientAccessIP)) {
             acceptToken = true;
             logMsg      = `auth token ACCEPTED for signed-in user (email: ${emailFromToken}), because of prior authentication on clientAccessIP: ${clientAccessIP}`;
             logIt       = log; // un-forced
