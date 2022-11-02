@@ -680,6 +680,7 @@ function broadcastUserAuthChanged(socket,      // the initiating socket (identif
 //* ... this is an push event only - NO response is supported
 //* RETURN: void
 //*-------------------------------------------------
+// ?? currently NEVER used with token ... this may change if/when used by other processes ... if so, we should rename sendPreAuthentication() ... if NOT, we should remove token (and client processing)
 function sendPreAuthentication(socket,     // the initiating socket
                                userState,  // the current data for user object
                                token) {    // the token to reset on the client (only when supplied)
@@ -1005,14 +1006,9 @@ export async function preAuthenticate(socket) {
     // setup the bi-directional relationship between Device(User)/Socket(window)
     setupDeviceSocketRelationship(device, socket);
 
-    // generate the token to be sent to our client
-    // ... we do this because our deviceId may have changed ?? even if changed, do we really want preAuth to reflect this
-    // ??$$ 333 I'm thinking that NOW we do NOT change the token from preAuth ... can simply do this by NOT supplying token in sendPreAuthentication()
-    const token = encodeUserToken(user);
-
     // communicate the pre-authentication to this client (socket)
     const userState = extractUserState(user);
-    sendPreAuthentication(socket, userState, token);
+    sendPreAuthentication(socket, userState); // ... NO token is supplied, so it is NOT updated on client
   }
 
   catch(e) { // ... try/catch prevent errors from crashing our server (some errors may be from our client)
