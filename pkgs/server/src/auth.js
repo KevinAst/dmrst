@@ -10,7 +10,26 @@
  *   - User objects
  *   - Device objects
  *   - bi-directional relationship between Device(User)/Socket(window)
+ *
  *      Device (user) --1:M--< Socket (browser windows) with back-ref socket.data.deviceIdFull
+ *
+ *      * the relationship FROM Device TO Socket is maintained by a "room" (part of socket.io)
+ *        - this means the dynamics of socket disconnects, is automatically maintained by socket.io
+ *        - the sockets in the group represent the browser window of a given user
+ *          * visualize-it automatically syncs user identity changes to all these windows
+ *          * this grouping has a similar scope to that of the browser localStorage
+ *
+ *      * socket.data: ... contains a number of useful items
+ *         - deviceIdFull:   the key to access the Device object (a back reference of our bi-directional relationship)
+ *         - deviceId:       the browser's logical device identifier (a virtual MAC so-to-speak) ...... part of deviceIdFull
+ *         - clientAccessIP: the internet access point for this client (think of as router/WiFi IP) ... part of deviceIdFull
+ *         - clientType:     'ide'/'sys'
+ *         - userAgent:      identifies the specific browser in use
+ *
+ * Of Interest is our PUBLIC API:
+ *   + getDevice(deviceIdFull|device|socket|socketId):   Device
+ *   + getUser(deviceIdFull|device|socket|socketId):     User (same as: device.user)
+ *   + getUserName(deviceIdFull|device|socket|socketId): string
  */
 
 import sendGridMail          from '@sendgrid/mail';
@@ -857,14 +876,14 @@ const deviceRoom = (deviceIdFull) => `device-${deviceIdFull}`;
  * - or a registered guest user
  * - or a unregistered guest user
  *
- * The following structure established by this function at the initialization
+ * The following structure is established by this function at the initialization
  * of the socket connection:
- * - Device object is established, either newly created or existing reference.
- * - socket.data.deviceIdFull back reference
- * - bi-directional relationship between Device(User)/Socket(window)
+ * - Device(user) object is established, either newly created or existing reference.
+ * - A bi-directional relationship between Device(User)/Socket(window) is setup
  *    Device (user) --1:M--< Socket (browser windows) with back-ref socket.data.deviceIdFull
+ *      ... see notes at the top of this module!
  *
- * Once complete, the following API is available:
+ * Once complete, the following PUBLIC API is available:
  *   + getDevice(deviceIdFull|device|socket|socketId):   Device
  *   + getUser(deviceIdFull|device|socket|socketId):     User (same as: device.user)
  *   + getUserName(deviceIdFull|device|socket|socketId): string
@@ -935,15 +954,25 @@ export async function preAuthenticate(socket) {
     // define deviceIdFull (combination of deviceId/clientAccessIP)
     deviceIdFull = encodeDeviceIdFull(deviceId, clientAccessIP);
 
-    // for a pre-existing device, the user is automatically accepted from their existing session
+    // for a pre-existing device, the user is automatically accepted in this existing session
     // ... in other words, they are already running our app in a separate browser window,
     //     and we accept those credentials
-    //     RISK: if hacker steals deviceId/token -AND- is on same clientAccessIP
+    //     RISK: if hacker steals the deviceId (the token is irrelevant in this case)
+    //           -AND- is on same clientAccessIP (i.e. an insider in a company, etc.)
+    //           -AND- the real user is active (i.e. has an active Device object in-memory)
     //           -THEN- they are IN LIKE FLYNN (without any other checks)
-    //           AI: we can potentially detect this in analyzeNefariousActivity()
-    //               IF they have different userAgent (browser)
-    //           ALSO NOTE: They will be "ousted" when the "real" user signs-out
-    //                      BECAUSE the "real" user's deviceId will be reset
+    //           AI: analyzeNefariousActivity() can potentially detect this
+    //               IF they have different userAgent (i.e. browser)
+    //               BECAUSE: a different browser SHOULD NOT have the same deviceId
+    //                        (it has been stolen)
+    //               HOWEVER: if the hacker is running the same browser/version,
+    //                        then this is NOT detectable
+    //           ALSO NOTE: The hacker will be "ousted" when a sign-out occurs for this user
+    //                      (typically the "real" user) BECAUSE 
+    //                      - ALL sessions for that user will be signed-out
+    //                      - and the deviceId will be reset (on the initiating client)
+    //                      - and all persistent PriorAuthDB are cleared
+    //                      > to get back in, the hacker would need to re-steal the deviceId
     device = getDevice(deviceIdFull);
     if (device) {
       log(`device ${deviceIdFull} pre-existed (re-used): `, prettyPrint({device}));
@@ -970,12 +999,22 @@ export async function preAuthenticate(socket) {
         let logMsg      = 'auth token message to-be-defined (should never see this unless problem in logic)';
         let userMsg     = '';
 
-        // when this token represents a signed-in user ... having a user account (i.e. email)
+        // when this token represents a signed-in user, having a user account (i.e. email)
         if (emailFromToken) {
-          // only accept signed-in users when the account has been previously authenticated on given deviceId clientAccessIP
-          // ... this will THWART "most" nefarious hackers (where deviceId/token are stolen through various techniques)
-          //     ... the only case NOT caught here, is where the nefarious hacker is on the same WiFi access point (e.g. router)
-          //         which means it's an "inside job"
+          // only accept signed-in users when the account has been previously authenticated on given deviceId/clientAccessIP
+          // NOTE: This will THWART "most" nefarious hackers (where deviceId/token are stolen through various techniques)
+          //       BECAUSE they are automatically granted access when they are in a different location.
+          // RISK: if hacker steals BOTH the deviceId/token
+          //       -AND- is on same clientAccessIP (i.e. an insider in a company, etc.)
+          //       -THEN- they are IN LIKE FLYNN (without any other checks)
+          //       AI: analyzeNefariousActivity() NOT sure this is detectable
+          //           NOT CORRECT: other than concurrent user in different locations (either they shared their email or a hacker)
+          //       ALSO NOTE: The hacker will be "ousted" when a sign-out occurs for this user
+          //                  (typically the "real" user) BECAUSE 
+          //                  - ALL sessions for that user will be signed-out
+          //                  - and the deviceId will be reset (on the initiating client)
+          //                  - and all persistent PriorAuthDB are cleared
+          //                  > to get back in, the hacker would need to re-steal the deviceId/token (once real user signs back in)
           if (await hasPriorAuthDB(emailFromToken, deviceId, clientAccessIP)) {
             acceptToken = true;
             logMsg      = `auth token ACCEPTED for previously signed-in user (email: ${emailFromToken}), because of prior authentication on clientAccessIP: ${clientAccessIP}`;
@@ -1087,6 +1126,7 @@ export async function preAuthenticate(socket) {
  *   - Device object
  *   - bi-directional relationship between Device(User)/Socket(window)
  *      Device (user) --1:M--< Socket (browser windows) with back-ref socket.data.deviceIdFull
+ *        ... see notes at the top of this module!
  *********************************************************************************/
 export async function clearAuthenticate(socket) {
   const log = logger(`${logPrefix}:clearAuthenticate`);
@@ -1096,7 +1136,6 @@ export async function clearAuthenticate(socket) {
   // NOTE: even though disconnected, this socket still retains the data we setup on it's connection
   //       ... socket.data.deviceIdFull
   //       ... THIS IS GREAT, as it is needed to do our clean up
-
 
   // NOTE: socket.io infrastructure dynamically reflects the room association when the socket is disconnected
 
@@ -1116,6 +1155,7 @@ export async function clearAuthenticate(socket) {
  * setup the bi-directional relationship between Device(User)/Socket(window)
  *
  *   Device (user) --1:M--< Socket (browser windows) with back-ref socket.data.deviceIdFull
+ *     ... see notes at the top of this module!
  *
  * RETURN: void
  *********************************************************************************/
