@@ -141,6 +141,10 @@ export default function registerAuthHandlers(socket) {
       return re.test(emailStr);
     }
 
+    // transform the email to a trimmed lowercase value
+    // ... KEY: this is critical to assure consistent comparison and matching
+    email = email.trim().toLowerCase();
+
     // validate request params
     if (!email) {
       return userErr('email must be supplied');
