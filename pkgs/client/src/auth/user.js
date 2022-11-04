@@ -235,26 +235,12 @@ function createUser() {
     },
 
     // sync user changes from 'pre-authentication' event
-    preAuthComplete: (userState, token) => {
+    preAuthComplete: (userState) => {
       // reflexively update our custom store to reflect these changes
       update(state => ({...state, ...userState}));
 
-      // when supplied, update our token as the embedded deviceId may have changed
-      // ... there are error conditions, where a temporary guest user is established
-      //     where we do NOT want to update the token
-      //     BECAUSE it is a temporary condition, that will be fixed once the error is resolved
-      if (token) {
-        localStorage.setItem('token', token);
-      }
-
       // display welcome message
-      // ... only when token is supplied
-      // ... when token is NOT supplied it is an error condition
-      //     and the client is sent a detailed message explaining the error
-      //     sooo ... we don't want to cover up that message :-)
-      if (token) {
-        alert.display(`Welcome ${get(user).getUserName()}`);
-      }
+      alert.display(`Welcome ${get(user).getUserName()}`);
     },
 
 	};
@@ -300,8 +286,8 @@ export function registerUserSocketHandlers(_socket) {
   // service the 'pre-authentication' event (from the server)
   // ... this happens on app initialization
   // RETURN void ... this is a push event only - no response is possible
-  socket.on('pre-authentication', (userState, token) => {
-    user.preAuthComplete(userState, token);
+  socket.on('pre-authentication', (userState) => {
+    user.preAuthComplete(userState);
   });
 
   // service the 'user-auth-changed' broadcast notification (from the server)

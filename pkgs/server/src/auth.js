@@ -735,13 +735,11 @@ function broadcastUserAuthChanged(deviceRef,       // the device reference, spec
 //* ... this is an push event only - NO response is supported
 //* RETURN: void
 //*-------------------------------------------------
-// ??$$ currently NEVER used with token ... this may change if/when used by other processes ... if so, we should rename sendPreAuthentication() ... if NOT, we should remove token (and client processing)
-function sendPreAuthentication(socket,     // the initiating socket
-                               userState,  // the current data for user object
-                               token) {    // the token to reset on the client (only when supplied)
+function sendPreAuthentication(socket,      // the initiating socket
+                               userState) { // the current data for user object
   // emit the 'pre-authentication' event to the supplied client (socket)
   log(`sendPreAuthentication() ... emit 'pre-authentication' event - socket: '${socket.id}', userState: `, userState);
-  socket.emit('pre-authentication', userState, token);
+  socket.emit('pre-authentication', userState);
 }
 
 //*-------------------------------------------------
@@ -1229,7 +1227,7 @@ export async function preAuthenticate(socket) {
 
     // communicate the pre-authentication to this client (socket)
     const userState = extractUserState(user);
-    sendPreAuthentication(socket, userState); // ... NO token is supplied, so it is NOT updated on client
+    sendPreAuthentication(socket, userState);
 
     // log all devices AFTER setup is complete
     logAllDevices(`All Devices AFTER preAuthenticate() of socket: ${socket.id}, device: ${socket.data.deviceIdFull}:`, log);
