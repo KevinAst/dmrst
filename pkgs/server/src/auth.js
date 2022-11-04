@@ -98,14 +98,12 @@ export default function registerAuthHandlers(socket) {
     // ... NOTE: we mutate this object :-)
     const user     = getUser(socket);
     user.guestName = guestName;
-
-    // re-populate all other user state (via user profile / enablements)
-    populateUserProfile(user);
+    populateUserProfile(user); // ... re-populate all other user state (via user profile / enablements)
 
     // broadcast the latest userState to all clients of this device
     // ... this will change the user/authentication for ALL apps running on this device (all app windows of this browser instance)
     const userState = extractUserState(user);
-    broadcastUserAuthChanged(socket, userState);
+    broadcastUserAuthChanged(socket/*deviceRef*/, userState, socket/*exclude from broadcast*/);
 
     // generate the token to be sent to our client
     const token = encodeUserToken(user);
@@ -209,7 +207,7 @@ export default function registerAuthHandlers(socket) {
     }
 
     // VERY TEMP DEV PROCESS that reveals the code
-    // ?? IMPORTANT: REMOVE THIS
+    // AI: IMPORTANT: ?? REMOVE THIS
     if (verificationCode === 'showme') {
       return userErr(`try: ${socket.data.verification.code}`);
     }
@@ -219,32 +217,36 @@ export default function registerAuthHandlers(socket) {
       return userErr(`invalid Verification Code`);
     }
 
-    // KEY: user sign-in successful - NOW update our server state
+    // ***
+    // *** KEY: user sign-in successful - NOW update our server state
+    // ***
 
     // obtain the user associated to this socket -AND- update it's key aspects
     // ... NOTE: our basic socket/device/user structure is pre-established via preAuthenticate()
     // ... NOTE: we mutate this object :-)
     const user = getUser(socket);
     user.email = socket.data.verification.email;
+    populateUserProfile(user); // ... re-populate all other user state (via user profile / enablements)
 
     // clear the verification info found in our socket
     clearSignInVerification(socket);
 
-    // re-populate all other user state (via user profile / enablements)
-    populateUserProfile(user);
-
     // broadcast the latest userState to all clients of this device
     // ... this will change the user/authentication for ALL apps running on this device (all app windows of this browser instance)
     const userState = extractUserState(user);
-    broadcastUserAuthChanged(socket, userState);
+    broadcastUserAuthChanged(socket/*deviceRef*/, userState, socket/*exclude from broadcast*/);
 
     // persist verification of user (email) on device / client access point
-    await addPriorAuthDB(user.email,
-                         socket.data.deviceId,
-                         socket.data.clientAccessIP);
+    // ... NO NEED to wait (await keyword) for this async function to complete
+    addPriorAuthDB(user.email,
+                   socket.data.deviceId,
+                   socket.data.clientAccessIP);
 
     // generate the token to be sent to our client
     const token = encodeUserToken(user);
+
+    // log all devices AFTER sign-in-verification is complete
+    logAllDevices(`All Devices AFTER 'sign-in-verification' of socket: ${socket.id}, device: ${socket.data.deviceIdFull}:`, log);
 
     // acknowledge success
     // ... for the initiating client, this is how it is updated
@@ -330,33 +332,43 @@ export default function registerAuthHandlers(socket) {
     const user = getUser(socket); // ... we mutate this object (below)
 
     // verify this user is signed in
+    // ... client should NOT allow this to happen (just for good measure)
     if (!user.isSignedIn()) {
       return userErr(`Cannot sign-out user ${user.getUserName()}, USER IS NOT signed-in.`);
     }
 
-    // KEY: user sign-out successful - update our server state
+    // ***
+    // *** KEY: user sign-out successful - update our server state
+    // ***
 
-    // clear prior verification of user (email) for ALL device / client access point
-    await clearPriorAuthDB(user.email);
+    // clear DB of prior verification of user (email) for ALL device / client access point
+    // ... NO NEED to wait (await keyword) for this async function to complete
+    clearPriorAuthDB(user.email);
 
-    // update our user object
-    user.email = '';
+    // force cross-device sign-out of this email account
+    // ... NOTE: our user object is updated (i.e. mutated)
+    signOutCrossDevice(socket);
 
-    // re-populate all other user state (via user profile / enablements)
-    populateUserProfile(user);
+    // reset our device (i.e. it's deviceId)
+    // ... this is an opportune time, since all accounts of this email are now signed-out
+    //     GOAL: minimize deviceId theft
+    //     NOTE: this is reflected BOTH on the client -and- server
+    //           REMEMBER: the device connection out-lives the user sign-in (it is part of the socket/window/app)
+    await resetDevice(socket);
 
-    // broadcast the latest userState to all clients of this device
-    // ... this will change the user/authentication for ALL apps running on this device (all app windows of this browser instance)
+    // generate the userState/token to be sent to our client
+    // ... NOTE: the user object has been updated (mutated) by signOutCrossDevice() (above)
     const userState = extractUserState(user);
-    broadcastUserAuthChanged(socket, userState);
+    const token     = encodeUserToken(user);
 
-    // generate the token to be sent to our client
-    const token = encodeUserToken(user);
+    // log all devices AFTER sign-in-verification is complete
+    logAllDevices(`All Devices AFTER 'sign-out' of socket: ${socket.id}, device: ${socket.data.deviceIdFull}:`, log);
 
     // acknowledge success
-    // ... for the initiating socket, this is how it is update
-    //     >>> it knows to update localStorage too
-    // ... for other clients of this device, they are updated via the broadcast event (above)
+    // ... for the initiating socket, this return value is how it is informed/updated
+    //     >>> KEY: it knows to update localStorage too
+    // ... for other clients of various devices, they are updated
+    //     via a broadcast event, initiated from signOutCrossDevice() (above)
     return ack({value: {
       userState,
       token,
@@ -487,7 +499,7 @@ async function sendEmailVerificationCode(socket) {
   };
   // ... send the email
   //     ANY ERROR should be handled by our invoker
-  // await sendGridMail.send(emailContent); // ?? AI: IMPORTANT: activate this ... for now just rely on "showme" to minimize email traffic in DEV
+  // await sendGridMail.send(emailContent); // AI: IMPORTANT: ?? activate this ... for now just rely on "showme" to minimize email traffic in DEV
 }
 
 //*---------------------------------------------------------
@@ -690,38 +702,97 @@ export function getUserName(ref) {
 //*-------------------------------------------------
 //* broadcast user authorization changes to all clients of a device
 //* ... initiated BY server TO client
-//* ... this will change the user/authentication for ALL apps running on this device
+//* ... this will change the user/authentication for ALL apps running on the supplied device
 //*     (all windows of this browser instance)
 //* ... because this is a "broadcast" event
 //*     NO response is possible, therefore we DO NOT wrap this in a promise
 //* ... this is a convenience function wrapping the socket protocol
 //* RETURN: void
 //*-------------------------------------------------
-function broadcastUserAuthChanged(socket,      // the initiating socket (identifying deviceIdFull)
-                                  userState) { // the current user state
-  // broadcast the 'user-auth-changed' event to all clients of the supplied device (via socket)
-  const deviceIdFull = socket.data.deviceIdFull;
+function broadcastUserAuthChanged(deviceRef,       // the device reference, specifying the clients to broadcast to
+                                                   // ... deviceIdFull|device|socket|socketId (one in the same)
+                                  userState,       // the current user state to broadcast
+                                  excludeSocket) { // an optional initiating socket to be excluded from this broadcast
+                                                   // ... CONTEXT: the initiating socket has already communicated/handled this change (typically via return semantics)
+  const device       = getDevice(deviceRef);
+  const deviceIdFull = device.deviceIdFull;
+  const deviceRm     = deviceRoom(deviceIdFull);
+
+  // broadcast the 'user-auth-changed' event to all clients of the supplied device
   log(`broadcastUserAuthChanged() ... broadcast 'user-auth-changed' event - deviceIdFull: '${deviceIdFull}', userState: `, userState);
-  // TO ALL room members (using the server)
-//io.in(deviceRoom(deviceIdFull)).emit('user-auth-changed', userState);
-  // TO ALL room members MINUS socket (using the socket)
-  socket.to(deviceRoom(deviceIdFull)).emit('user-auth-changed', userState);
+  if (excludeSocket) { // ... to ALL room members EXCLUDING socket (API driven by socket)
+    excludeSocket.to(deviceRm).emit('user-auth-changed', userState);
+  }
+  else { // ... to ALL room members (API driven by the socket.io server)
+    io.in(deviceRm).emit('user-auth-changed', userState);
+  }
 }
 
 
 //*-------------------------------------------------
-//* send pre-authentication to the supplied client (socket)
+//* send pre-authentication results to the supplied client (socket)
 //* ... initiated BY server TO client
 //* ... this is an push event only - NO response is supported
 //* RETURN: void
 //*-------------------------------------------------
-// ?? currently NEVER used with token ... this may change if/when used by other processes ... if so, we should rename sendPreAuthentication() ... if NOT, we should remove token (and client processing)
+// ??$$ currently NEVER used with token ... this may change if/when used by other processes ... if so, we should rename sendPreAuthentication() ... if NOT, we should remove token (and client processing)
 function sendPreAuthentication(socket,     // the initiating socket
                                userState,  // the current data for user object
                                token) {    // the token to reset on the client (only when supplied)
   // emit the 'pre-authentication' event to the supplied client (socket)
   log(`sendPreAuthentication() ... emit 'pre-authentication' event - socket: '${socket.id}', userState: `, userState);
   socket.emit('pre-authentication', userState, token);
+}
+
+//*-------------------------------------------------
+//* Force a cross-device sign-out of an email account.
+//*
+//* BOTH the email account and device are implied through the supplied initiatingSocket.
+//* 
+//* NOTE: The sign-out process is the only one that crosses device boundaries.
+//*       Even though it is a bit broad in scope, this is done to safeguard ID theft.
+//*       - ANY hackers with stolen deviceId/token will NOT be able to refresh and auto 
+//*         preAuthenticate(), BECAUSE:
+//*           1. the deviceId has changed -and-
+//*           2. the PriorAuthDB has been cleared of prior verified access points for this user (email)
+//*       Typically, in normal usage, this will NEVER be seen by most users.
+//* 
+//* RETURN: void
+//*-------------------------------------------------
+function signOutCrossDevice(initiatingSocket) { // the initiating socket identifies the email to sign-out
+
+  const initiatingDevice = getDevice(initiatingSocket);
+  const emailToSignOut   = initiatingDevice.user.email;
+
+  //***
+  //*** Force a cross-device sign-out of an email account
+  //***
+
+  // iterate over all active devices
+  const allDevices = Array.from(devices.values());
+  for (const device of allDevices) {
+    const user = device.user;
+
+    // exclude devices NOT authenticated with our target account (email)
+    if (user.email !== emailToSignOut) {
+      continue;
+    }
+
+    // update the device's user object to be signed-out
+    user.email = '';
+    populateUserProfile(user); // ... re-populate all other user state (via user profile / enablements)
+
+    // broadcast the latest userState to all clients of this device
+    // ... this will change the user/authentication for ALL apps running on this device (all app windows of this browser instance)
+    const userState = extractUserState(user);
+    if (device === initiatingDevice) {
+      // exclude initiatingSocket from this broadcast BECAUSE it get's it's notification from our invoker's return value
+      broadcastUserAuthChanged(device, userState, initiatingSocket/*exclude from broadcast*/);
+    }
+    else {
+      broadcastUserAuthChanged(device, userState);
+    }
+  }
 }
 
 
@@ -857,11 +928,60 @@ function removeDevice(ref) {
 //* RETURN: socket[] VIA promise
 //*-------------------------------------------------
 async function getSocketsInDevice(ref) {
-  const deviceIdFull = ref?.data?.deviceIdFull /*socket*/ || ref?.deviceIdFull /*device*/ || ref /*deviceIdFull*/;
+  const deviceIdFull  = ref?.data?.deviceIdFull /*socket*/ || ref?.deviceIdFull /*device*/ || ref /*deviceIdFull*/;
   const deviceSockets = await io.in(deviceRoom(deviceIdFull)).fetchSockets(); // ... an array of sockets[]
   return deviceSockets;
 }
 
+//*-------------------------------------------------
+//* Reset the device (i.e it's deviceId), defined from the supplied socket
+//* 
+//* Both client and server data structures reflect this change.
+//* 
+//* PARM:   socket: identifies the device to reset -and- is used in client request to reset the deviceId
+//* RETURN: void VIA promise
+//*-------------------------------------------------
+async function resetDevice(socket) {
+
+  const device = getDevice(socket);
+
+  // define the "old" room, using the "old" deviceId (which needs to be cleaned-up)
+  const oldRoom = deviceRoom(device.deviceIdFull);
+
+  // reset the deviceId on our client
+  // ... the client actually establishes/retains the new deviceId (a random string)
+  const newDeviceId = await resetDeviceIdFromClient(socket);
+
+  // un-catalog the device object (since it's key IS GOING TO change)
+  devices.delete(device.deviceIdFull);
+
+  // reflect the new deviceId in our device object
+  device.deviceIdFull = encodeDeviceIdFull(newDeviceId, device.clientAccessIP);
+  device.deviceId     = newDeviceId;
+
+  // update ALL socket back-references within the NEW deviceId
+  // ... this step CAN be done after mutating the device
+  //     BECAUSE we use socket to seed getSocketsInDevice() (which hasn't changed yet)
+  //     RATHER than seeding it with device (which is mutated in our prior step)
+  const sockets = await getSocketsInDevice(socket);
+  sockets.forEach(socket => {
+    // for complete cleanup, need to leave the "old" room
+    // ... not critical but it is never used :-)
+    socket.leave(oldRoom);
+
+    // our common utility sets up the room and socket back-references
+    setupDeviceSocketRelationship(device, socket);
+  });
+
+  // re-catalog the device object (since it's key has changed)
+  devices.set(device.deviceIdFull, device);
+}
+
+//*-------------------------------------------------
+//* return  the socket.io room, defining the Device TO Socket relationship
+//* PARM:   deviceIdFull
+//* RETURN: socket.io room <string>
+//*-------------------------------------------------
 const deviceRoom = (deviceIdFull) => `device-${deviceIdFull}`;
 
 
@@ -1112,7 +1232,7 @@ export async function preAuthenticate(socket) {
     sendPreAuthentication(socket, userState); // ... NO token is supplied, so it is NOT updated on client
 
     // log all devices AFTER setup is complete
-    logAllDevices('All Devices AFTER setup', log)
+    logAllDevices(`All Devices AFTER preAuthenticate() of socket: ${socket.id}, device: ${socket.data.deviceIdFull}:`, log);
   }
 }
 
@@ -1147,7 +1267,7 @@ export async function clearAuthenticate(socket) {
   }
 
   // that's all folks
-  logAllDevices(`All Devices AFTER disconnect of socket: ${socket.id}, device: ${socket.data.deviceIdFull} ... `, log)
+  logAllDevices(`All Devices AFTER clearAuthenticate() ... disconnect of socket: ${socket.id}, device: ${socket.data.deviceIdFull}:`, log)
 }
 
 
@@ -1178,7 +1298,7 @@ function setupDeviceSocketRelationship(device, socket) {
  * expected for multiple windows within the same browser instance
  * (e.g. chrome, edge, safari, etc.)
  *
- * RETURN: deviceId
+ * RETURN: deviceId (via promise)
  *
  * THROW: Error: an unexpected error from client, or NO response (timeout)
  *********************************************************************************/
@@ -1188,6 +1308,27 @@ function getDeviceIdFromClient(socket) {
     // issue the 'get-device-id' request to our client
     // ... we use a timeout, so our client CANNOT lock-up the entire process
     const event = 'get-device-id';
+    socket.timeout(2000).emit(event, socketAckFn_timeout(resolve, reject, `process client event: '${event}'`));
+  });
+}
+
+
+/********************************************************************************
+ * Reset the unique deviceId on our client.  A device technically
+ * identifies a browser instance.  In other words the same deviceId is
+ * expected for multiple windows within the same browser instance
+ * (e.g. chrome, edge, safari, etc.)
+ *
+ * RETURN: deviceId (via promise) ... the newly reset id
+ *
+ * THROW: Error: an unexpected error from client, or NO response (timeout)
+ *********************************************************************************/
+function resetDeviceIdFromClient(socket) {
+  // promise wrapper of our socket message protocol
+  return new Promise((resolve, reject) => {
+    // issue the 'reset-device-id' request to our client
+    // ... we use a timeout, so our client CANNOT lock-up the entire process
+    const event = 'reset-device-id';
     socket.timeout(2000).emit(event, socketAckFn_timeout(resolve, reject, `process client event: '${event}'`));
   });
 }

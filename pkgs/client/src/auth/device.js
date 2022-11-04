@@ -20,11 +20,10 @@ export function getDeviceId() {
 
 /********************************************************************************
  * Reset the "simulated" deviceId for this client app.  This is
- * initiated through a server directive, when it detects first usage
- * of a device (i.e. the first app instance for a given browser
- * instance).
+ * initiated through a server directive in the sign-out process,
+ * as a preventative measure to safeguard ID theft.
  * 
- * In essence this minimizes hacker re-use, because the deviceId
+ * In essence this minimizes deviceId theft, because the deviceId
  * changes constantly.
  *
  * RETURN: deviceId (newly generated)
@@ -39,4 +38,4 @@ export function resetDeviceId() {
 //       device.  It technically still works, with that caveat.
 
 // NOTE: Encryption of this item would not alleviate hacker use
-//       BECAUSE a hacker can still use he encrypted value "as is".
+//       BECAUSE a hacker can still use the encrypted value "as is".

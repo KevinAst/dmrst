@@ -4,7 +4,8 @@
 
 import {writable, get} from 'svelte/store';
 import alert           from '../util/alert';
-import {getDeviceId}   from './device';
+import {getDeviceId,
+        resetDeviceId} from './device';
 import {socketAckFn}   from '../core/util/socketIOUtils';
 import logger          from '../core/util/logger';
 const  log = logger('vit:client:user');
@@ -282,6 +283,12 @@ export function registerUserSocketHandlers(_socket) {
   // RETURN (via ack): deviceId <string>
   socket.on('get-device-id', (ack) => {
     return ack({value: getDeviceId()});
+  });
+
+  // service the 'reset-device-id' request (from the server)
+  // RETURN (via ack): deviceId <string>
+  socket.on('reset-device-id', (ack) => {
+    return ack({value: resetDeviceId()});
   });
 
   // service the 'get-auth-token' request (from the server)
