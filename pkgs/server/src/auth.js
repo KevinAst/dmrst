@@ -826,6 +826,14 @@ function gleanClientAccessIPFromHeader(socket) {
   //     ... because of socket.request.connection.remoteAddress fallback usage
   let clientAccessIP = socket.handshake.headers['x-forwarded-for'] || socket.request.connection.remoteAddress;
 
+  // ALL following techniques get the same thing on localhost: '::1'
+  // ... https://stackoverflow.com/questions/6458083/get-the-clients-ip-address-in-socket-io
+  // ... https://github.com/socketio/socket.io/issues/1387
+  //? log(`clientAccessIP: ${clientAccessIP}`);
+  //? log(`socket.handshake.address: `, socket.handshake.address);
+  //? log(`UNDEFINED: socket.handshake.address. address/port: `, {address: socket.handshake.address.address, port: socket.handshake.address.port});
+  //? log(`socket.request.connection.remoteAddress: `, socket.request?.connection?.remoteAddress);
+
   // normalize '::1' to '127.0.0.1' (localhost)
   // ... '::1' is the loopback address in ipv6
   //     equivalent to 127.0.0.1 in ipv4
