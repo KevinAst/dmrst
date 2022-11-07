@@ -34,6 +34,7 @@
 
 import sendGridMail          from '@sendgrid/mail';
 import {socketAckFn_timeout} from './core/util/socketIOUtils';
+import {isDev}               from './util/env';
 import {prettyPrint}         from './util/prettyPrint';
 import {msgClient}           from './chat';
 import randomNumber          from 'random-number-csprng';
@@ -203,16 +204,18 @@ export default function registerAuthHandlers(socket) {
       return userErr(`the sign-in verification time has expired ... please cancel and sign-in again`);
     }
 
-    // limit the number of verification attempts to 10
+    // limit the number of verification attempts to 5
     socket.data.verification.attempts++;
-    if (socket.data.verification.attempts > 10) {
+    if (socket.data.verification.attempts > 5) {
       clearSignInVerification(socket);
       return userErr(`you have exceeded the maximum number of verification attempts ... please cancel and sign-in again`);
     }
 
     // VERY TEMP DEV PROCESS that reveals the code
-    // AI: IMPORTANT: ?? REMOVE THIS
-    if (verificationCode === 'showme') {
+    // AI: IMPORTANT: REMOVE THIS for production release
+    //                ... for good measure
+    //                ... even though it should NOT be active in prod (due to differences in env for prod deployment)
+    if (process.env.VERIFY_EASTER_EGG && verificationCode === process.env.VERIFY_EASTER_EGG) {
       return userErr(`try: ${socket.data.verification.code}`);
     }
 
@@ -456,7 +459,7 @@ async function generateEmailVerificationCode(socket, email) {
   //          Generate Cryptographically Secure Pseudo-Random Numbers
   //          https://www.npmjs.com/package/random-number-csprng
   //          $ npm install --save random-number-csprng
-  const verificationCode = await randomNumber(100000, 999999) + '' /* convert to string for easy comparison */;
+  const verificationCode = await randomNumber(100000, 999999) + ''; /* convert to string for easy comparison */
   // log(`verificationCode: ${verificationCode}`); // NO NO: info is too sensitive
 
   // expire verification code in 5 mins
@@ -482,14 +485,22 @@ async function generateEmailVerificationCode(socket, email) {
 //*---------------------------------------------------------
 async function sendEmailVerificationCode(socket) {
 
-  // no-op when sign-in period has NOT expired
+  // no-op in a dev environment, when it has an alternate way to obtain the verification code
+  // AI: IMPORTANT: REMOVE THIS for production release
+  //                ... for good measure
+  //                ... even though it should NOT be active in prod (due to differences in env for prod deployment)
+  if (isDev && process.env.VERIFY_EASTER_EGG) {
+    return;
+  }
+
+  // no-op when sign-in period has expired
   // ... technically, the client should NOT allow this (just for good measure)
   if (!socket.data.verification) {
     return;
   }
 
-  // email verification code to the email defined in the supplied socket
-  // ... define our message to be email
+  // send the verification code to the email defined in the supplied socket
+  // ... define the verification message to be sent
   const emailContent = {
     to:      socket.data.verification.email,
     bcc:     'kevin@appliedsofttech.com', // AI: IMPORTANT: very temporary for now (monitor all sign-in activity IN the early days)
@@ -502,8 +513,8 @@ async function sendEmailVerificationCode(socket) {
              `This is a system generated email. Replies will not be read or forwarded for handling.`,
   };
   // ... send the email
-  //     ANY ERROR should be handled by our invoker
-  // await sendGridMail.send(emailContent); // AI: IMPORTANT: ?? activate this ... for now just rely on "showme" to minimize email traffic in DEV
+  //     NOTE: ANY ERROR should be handled by our invoker
+  await sendGridMail.send(emailContent);
 }
 
 //*---------------------------------------------------------
@@ -739,11 +750,12 @@ function broadcastUserAuthChanged(deviceRef,       // the device reference, spec
 //* ... this is an push event only - NO response is supported
 //* RETURN: void
 //*-------------------------------------------------
-function sendPreAuthentication(socket,      // the initiating socket
-                               userState) { // the current data for user object
+function sendPreAuthentication(socket,     // the initiating socket
+                               userState,  // the current data for user object
+                               userMsg) {  // the message to display to our user
   // emit the 'pre-authentication' event to the supplied client (socket)
-  log(`sendPreAuthentication() ... emit 'pre-authentication' event - socket: '${socket.id}', userState: `, userState);
-  socket.emit('pre-authentication', userState);
+  log(`sendPreAuthentication() ... emit 'pre-authentication' event - socket: '${socket.id}': `, {userState, userMsg});
+  socket.emit('pre-authentication', userState, userMsg);
 }
 
 //*-------------------------------------------------
@@ -913,12 +925,25 @@ export function getDevice(ref) {
 //* RETURN: Device ... newly created
 //*-------------------------------------------------
 function createDevice(deviceIdFull, deviceId, clientAccessIP, user) {
+
+  // prevent the creation of a duplicate device key
+  // ... we do NOT want to cover up the prior device
+  // ... NOTE: based on current logic, should NEVER happen (just for good measure)
+  if (getDevice(deviceIdFull)) {
+    throw new Error(`***ERROR*** createDevice() cannot create duplicate device with key: ${deviceIdFull}`);
+  }
+
+  // create our new device
   const device = {
     deviceIdFull,   // primary key
     deviceId,       // ... strictly convenience (part of deviceIdFull)
     clientAccessIP, // ... strictly convenience (part of deviceIdFull)
     user};
+
+  // catalog our new device
   devices.set(deviceIdFull, device);
+
+  // that's all folks
   return device;
 }
 
@@ -1032,13 +1057,12 @@ export async function preAuthenticate(socket) {
 
   // adorn our socket obj with the following standard items
   // ... clientType: 'ide'/'sys' - supplied by client app
-  //     ??## use this in analyses
   socket.data.clientType = socket.handshake.auth.clientType
   log(`using clientType (gleaned from client app): ${socket.data.clientType}`);
   // ... userAgent: browser identification (from socket header)
   //     EX: Chrome Browser:
   //         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36'
-  //     ??## use this in analyses
+  //     NOTE: currently NOT used, because we have a definitive way to confirm the same browser instances in a device
   socket.data.userAgent = socket.handshake.headers['user-agent'];
   log(`using userAgent (gleaned from socket header): ${socket.data.userAgent}`);
 
@@ -1064,6 +1088,8 @@ export async function preAuthenticate(socket) {
   let deviceIdFull   = undefined; // device key (combining deviceId/clientAccessIP)
   let device         = undefined; // the device obj, containing user, and managing concurrent client sessions (i.e. sockets - alias to browser window)
   let user           = undefined; // contained in device
+  let userMsg        = '';        // the message to send to the user upon completion (defaults to a Welcome msg)
+  let issueEmail     = '';        // an email to send an issue to
 
   // NOTE: the goal of this try/catch block is to fully define the working vars (above) - to be used in subsequent steps
   try { // ... try/catch preventing errors from crashing our server (some errors may be from our client)
@@ -1071,7 +1097,7 @@ export async function preAuthenticate(socket) {
     // TEST ERROR CONDITION: 
     // ... also try NOT responding on client 'get-device-id' event (see client/src/user.js)
     //     resulting in time-out error
-    // if (1==1) throw new Error('Test error in preAuthenticate');
+    // if (1===1) throw new Error('Test error in preAuthenticate');
 
     // obtain the clientAccessIP associated to the supplied socket header
     clientAccessIP = gleanClientAccessIPFromHeader(socket);
@@ -1084,29 +1110,83 @@ export async function preAuthenticate(socket) {
     // define deviceIdFull (combination of deviceId/clientAccessIP)
     deviceIdFull = encodeDeviceIdFull(deviceId, clientAccessIP);
 
-    // for a pre-existing device, the user is automatically accepted in this existing session
-    // ... in other words, they are already running our app in a separate browser window,
-    //     and we accept those credentials
-    //     RISK: if hacker steals the deviceId (the token is irrelevant in this case)
-    //           -AND- is on same clientAccessIP (i.e. an insider in a company, etc.)
-    //           -AND- the real user is active (i.e. has an active Device object in-memory)
-    //           -THEN- they are IN LIKE FLYNN (without any other checks)
-    //           AI: analyzeNefariousActivity() can potentially detect this
-    //               IF they have different userAgent (i.e. browser)
-    //               BECAUSE: a different browser SHOULD NOT have the same deviceId
-    //                        (it has been stolen)
-    //               HOWEVER: if the hacker is running the same browser/version,
-    //                        then this is NOT detectable
-    //           ALSO NOTE: The hacker will be "ousted" when a sign-out occurs for this user
-    //                      (typically the "real" user) BECAUSE 
-    //                      - ALL sessions for that user will be signed-out
-    //                      - and the deviceId will be reset (on the initiating client)
-    //                      - and all persistent PriorAuthDB are cleared
-    //                      > to get back in, the hacker would need to re-steal the deviceId
+    // AUTO-ACCESS-1: for a pre-existing device, the user is automatically accepted in this existing session
+    //                PROVIDING the SAME browser instance is being used (definitively confirmed)!
+    //                ... in other words, they are already running our app in a separate browser window,
+    //                    and we accept those credentials
+    //     RISK:      there is NO risk in this scenario BECAUSE we confirm the same browser instance is in-use
+    //     CONTEXT:   if there were NO confirmation of same browser, a hacker could steal the deviceId
+    //                and gain access providing the real user was active.
+    //     SIDE-BAR:  there is a slight chance that the existing session is a hacker (and this new request is the real user)
+    //                WHEN the hacker was active first (from AUTO-ACCESS-2 below)
+    //                - this is less likely, but still a possibility
+    //                  BECAUSE: the hacker would need to be on a previously validated access point of the real user (or inside the same router of the real user)
+    //                - if that happens, the real user can regain control (ousting the hacker) by simply: sign-in/sign-out:
+    //                  AI: consider creating a "restoration" process that does this automatically for the user (so they don't have to do a sign-in/sign-out
+    //                  AI: the following summary promotes too much insight (should the hacker look at this code)
+    //                  0. in this scenario the hacker is actively signed-in (see: AUTO-ACCESS-2 below)
+    //                     >>> for this to happen, they have to:
+    //                         a. steal both the deviceId/token
+    //                            ... this theft is thought to rare, as it requires physical access to the computer's localStorage
+    //                                (assuming all XSS doors have been shut)
+    //                            ... remember, the deviceId changes frequently (on sign-out)
+    //                         b. access the system when the real user is NOT actively signed-in
+    //                     AND the real user starts out as a Guest (because the hacker has stolen their identity and is actively signed-in)
+    //                     ... with a device with the temporary key
+    //                  1. sign-in (verifying you own the email account)
+    //                     ... this is still using the device with a temporary key
+    //                     ... we now have two sessions with the same account (the hacker and the real user)
+    //                  2. sign-out immediately (this forces the active hacker to be signed-out, in such a way that they can no longer regain access, in their current state)
+    //                     ... forces sign-out of the hacker
+    //                     ... clears previously validated access points
+    //                     ... resets the real user deviceId
+    //                         ... the reset process also reactivates the device with a legit key (of the newly reset deviceId)
+    //                         >>> a hacker browser refresh will NO LONGER provide access to the account
+    //                             MSG: you must explicitly sign-in because you have not authenticated from this internet access point 
+    //                  3. everything is now back to normal (and has been re-secured)
+    //                     go ahead and sign-in as you normally would
+    //                     >>> for the hacker to regain access, they would need to repeat their prior steps 
+    //                         a. re-steal both the deviceId/token
+    //                            ... this theft is thought to rare, as it requires physical access to the computer's localStorage
+    //                                (assuming all XSS doors have been shut)
+    //                            ... remember, the deviceId changes frequently (on sign-out)
+    //                         b. access the system when the real user is NOT actively signed-in
     device = getDevice(deviceIdFull);
     if (device) {
+      log(`device ${deviceIdFull} pre-existed ... checking to insure the same browser is being used`);
+
+      // confirm the requesting browser instance is the same as the existing browsers of this device!
+      const sockets = await getSocketsInDevice(device);
+      const existingSessionSocket = sockets[0]; // ... only need to check the first socket (all will have the same browser characteristic)
+      const tempKey = 'TEMP-' + await randomNumber(100000, 999999); // ... convert to string for easy comparison
+      const tempVal = await randomNumber(100000, 999999) + '';      //     ditto
+
+      await setTempEntryOnClient(existingSessionSocket, tempKey, tempVal);            // set temp entry on existing session
+      const tempValOnPendingSession = await getTempEntryFromClient(socket, tempKey);  // get temp entry on new session (if same browser, should be the same)
+
+      // THIS IS IT: a definitive determination of if both sessions are from the same browser!
+      // Even though the value is stored/retrieved on different sessions (sockets),
+      // because the browser localStorage is used (in the client implementation),
+      // the value retrieved should be the value stored
+      // PROVIDING the two sessions are on the same browser!!!
+      // NOTE: Technically we cannot determine if the hacker is the existing session -or- the new request
+      //       BECAUSE: the hacker could be active first (via: AUTO-ACCESS-2 ... see below)
+      //                ... this is less likely, but still a possibility
+      if (tempVal !== tempValOnPendingSession) {
+        issueEmail = device.user.email; // ... may be '' if device is NOT signed in ... typically this will be the real user ... however if the hacker is IN first and they have signed-in on their account, the email will go to them :-(
+        throw new Error('STOLEN IDENTITY DETECTED'); // ... see special logic in catch (of try/catch)
+      }
+
+      //***
+      //*** KEY: We have proven that the new session is on the same browser as the existing device!
+      //***
+
+      // THIS IS IT (for AUTO-ACCESS-1):
+      // the user is automatically accepted in this existing session
       log(`device ${deviceIdFull} pre-existed (re-used): `, prettyPrint({device}));
       user = device.user;
+
+      // AI: ??## also WARN user if this connection results in multiple IDE apps (socket.data.clientType === 'ide')
     }
 
     // CREATE a new user/device, on first-use (for a not-previously active user/device)
@@ -1127,23 +1207,20 @@ export async function preAuthenticate(socket) {
         // ... see comments (below)
         let acceptToken = false;
         let logMsg      = 'auth token message to-be-defined (should never see this unless problem in logic)';
-        let userMsg     = '';
 
         // when this token represents a signed-in user, having a user account (i.e. email)
         if (emailFromToken) {
-          // only accept signed-in users when the account has been previously authenticated on given deviceId/clientAccessIP
+          // AUTO-ACCESS-2: accept account credentials when the account has been previously authenticated on given deviceId/clientAccessIP
           // NOTE: This will THWART "most" nefarious hackers (where deviceId/token are stolen through various techniques)
-          //       BECAUSE they are automatically granted access when they are in a different location.
+          //       BECAUSE they are NOT automatically granted access when they are in a different location.
           // RISK: if hacker steals BOTH the deviceId/token
-          //       -AND- is on same clientAccessIP (i.e. an insider in a company, etc.)
-          //       -THEN- they are IN LIKE FLYNN (without any other checks)
-          //       AI: analyzeNefariousActivity() NOT sure this is detectable
-          //           NOT CORRECT: other than concurrent user in different locations (either they shared their email or a hacker)
+          //       -AND- the hacker is on a previously authenticated clientAccessIP (either an insider in a company, or an access point previously used by real user)
+          //       -THEN- they ARE IN (without any other checks)
           //       ALSO NOTE: The hacker will be "ousted" when a sign-out occurs for this user
           //                  (typically the "real" user) BECAUSE 
           //                  - ALL sessions for that user will be signed-out
           //                  - and the deviceId will be reset (on the initiating client)
-          //                  - and all persistent PriorAuthDB are cleared
+          //                  - and all persistent PriorAuthDB are cleared (meaning users have to re-authenticate)
           //                  > to get back in, the hacker would need to re-steal the deviceId/token (once real user signs back in)
           if (await hasPriorAuthDB(emailFromToken, deviceId, clientAccessIP)) {
             acceptToken = true;
@@ -1169,11 +1246,6 @@ export async function preAuthenticate(socket) {
           user.guestName = guestNameFromToken;
         }
 
-        // communicate to user (when needed)
-        if (userMsg) {
-          msgClient(socket, userMsg);
-        }
-
         // log what just happened
         log(logMsg, {
           socket: socket.id,
@@ -1184,6 +1256,7 @@ export async function preAuthenticate(socket) {
             email:     emailFromToken, 
             guestName: guestNameFromToken,
           },
+          userMsg,
         });
 
       } // ... end of token processing ... for NO token we use the unregistered guest user
@@ -1217,17 +1290,46 @@ export async function preAuthenticate(socket) {
     //           and errors causes the re-use of device/user
 
     // start from scratch and use content that will create temporary device/user that is an unregistered guest user
+    // NOTE: this client/user will ALWAYS be in a device of one TILL they refresh (disconnecting/reconnecting their socket)
     deviceId     = 'SOCKET-FROM-ERROR-' + socket.id; // ... use socket.id (very temporary ... it's all we have)
     deviceIdFull = encodeDeviceIdFull(deviceId, clientAccessIP);
     user         = createUser(); // ... defaults to: unregistered guest user
     device       = createDevice(deviceIdFull, deviceId, clientAccessIP, user);
 
     // notify user of problem
-    const usrMsg = 'A problem occurred in our pre-authentication process (see logs).  ' +
-                   'For the moment, you may continue as a "Guest" user.  ' +
-                   'Try to reconnect at a later point by refreshing your browser.  ' +
-                   'If this problem persists, reach out to our support staff.';
-    msgClient(socket, usrMsg, errMsg);
+    if (e.message === 'STOLEN IDENTITY DETECTED') {
+      userMsg = 'Our pre-authentication process has detected an identity theft of this account. ' +
+                'If you are the real user of this account, an email has been sent to you, with instructions on how to rectify this issue. ' +
+                'Hackers are NOT WELCOME in visualize-it.  We have recorded this event and are watching your activity closely!';
+
+      // send email to user with instructions on how to rectify this issue
+      if (issueEmail) {
+        const emailContent = {
+          to:      issueEmail,
+          bcc:     'kevin@appliedsofttech.com', // monitor all identity theft
+          from:    'kevin@appliedsofttech.com', // AI: use the email address or domain you verified with SendGrid
+          subject: 'visualize-it Malicious Activity Detected',
+          html:    `<p>We have recently detected suspicious activity <i>(a possible identity theft)</i> of the <b>visualize-it</b> account using this email.</p>
+                    <p>You may regain control <i>(ousting the potential hacker)</i> by simply <b>"signing in"</b> and <b>"signing out"</b> of your <b>visualize-it</b> account.</p>
+                    <ol>
+                    <li>By <b>signing-in</b>, you verify that you own this email account
+                    <li>By <b>signing-out</b> immediately, this forces the sign-out of the active hacker ... <i>in such a way that they can no longer regain access <b>(in their current state)</b></i>
+                    </ol>
+                    <p>Once this is accomplished, you will have regained control <i>(i.e. everything has been re-secured)</i>.</p>
+                    <p>You may sign-in as you normally would.</p>
+                    <p>Sincerely,<br/>Your visualize-it Support Team</p>`,
+        };
+        // ... NO NEED to wait (await keyword) for this async function to complete
+        sendGridMail.send(emailContent);
+      }
+    }
+    else {
+      userMsg = 'An issue occurred in our pre-authentication process:  ' +
+                'For the moment, you may continue as a "Guest" user, or explicitly sign-in to your account.  ' +
+        // NO:  'You can also try to reconnect at a later point by refreshing your browser.  ' +
+                'If this problem persists, reach out to our support staff.  ' +
+                `... ${e}`;
+    }
   }
 
   finally { // ... finish up setting up our critical structures (common to BOTH non-error and error block)
@@ -1239,7 +1341,8 @@ export async function preAuthenticate(socket) {
 
     // communicate the pre-authentication to this client (socket)
     const userState = extractUserState(user);
-    sendPreAuthentication(socket, userState);
+    userMsg = userMsg || `Welcome ${user.getUserName()}`; // ... default userMsg if not explicitly set
+    sendPreAuthentication(socket, userState, userMsg);
 
     // log all devices AFTER setup is complete
     logAllDevices(`All Devices AFTER preAuthenticate() of socket: ${socket.id}, device: ${socket.data.deviceIdFull}:`, log);
@@ -1358,5 +1461,50 @@ function getAuthTokenFromClient(socket) {
     // ... we use a timeout, so our client CANNOT lock-up the entire process
     const event = 'get-auth-token';
     socket.timeout(2000).emit(event, socketAckFn_timeout(resolve, reject, `process client event: '${event}'`));
+  });
+}
+
+
+/********************************************************************************
+ * Set a temporary entry on the client (defined by the supplied socket).
+ *
+ * A temporary entry is retained on the client for only a short period of time.
+ * ... the client will clear it after a short time
+ *
+ * Because the client implementation uses localStorage, this can be
+ * used (in conjunction with getTempEntryFromClient()) as a definitive
+ * determination of whether multiple client sockets are from the same
+ * browser instance!
+ *
+ * RETURN: void (via promise)
+ *
+ * THROW: Error: (via promise) an unexpected error from client, or NO response (timeout)
+ *********************************************************************************/
+function setTempEntryOnClient(socket, key, val) {
+  // promise wrapper of our socket message protocol
+  return new Promise((resolve, reject) => {
+    // issue the 'set-temp-entry' request to our client
+    // ... we use a timeout, so our client CANNOT lock-up the entire process
+    const event = 'set-temp-entry';
+    socket.timeout(2000).emit(event, key, val, socketAckFn_timeout(resolve, reject, `process client event: '${event}'`));
+  });
+}
+
+/********************************************************************************
+ * Get a temporary entry on the client (defined by the supplied socket).
+ *
+ * SEE: setTempEntryOnClient() docs
+ *
+ * RETURN: string (via promise)
+ *
+ * THROW: Error: (via promise) an unexpected error from client, or NO response (timeout)
+ *********************************************************************************/
+function getTempEntryFromClient(socket, key) {
+  // promise wrapper of our socket message protocol
+  return new Promise((resolve, reject) => {
+    // issue the 'get-temp-entry' request to our client
+    // ... we use a timeout, so our client CANNOT lock-up the entire process
+    const event = 'get-temp-entry';
+    socket.timeout(2000).emit(event, key, socketAckFn_timeout(resolve, reject, `process client event: '${event}'`));
   });
 }

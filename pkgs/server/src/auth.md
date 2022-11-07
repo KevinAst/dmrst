@@ -124,14 +124,17 @@ that are maintained by our server:
       creation time.  This means that all messages from a given socket
       have the authority of it's associated user/device.
 
-      Keep in mind that the user content associated in a socket can
-      change over time.  The user may start out as an authenticated
-      user (John Doe), but if they sign-out, the user object morphs
-      into a "guest" user.
+      Keep in mind that a socket connection out-lives a given user
+      sign-in.  This socket connection is established for the duration
+      of the app, and the user can change over time _(through
+      sign-in/sign-out)_.  As a result, the user content associated in
+      a socket can change over time.  The user may start out as an
+      authenticated user (John Doe), but if they sign-out, the user
+      object morphs into a "guest" user.
 
-      - Using the real-time socket protocol, these User changes are
-        dynamically reflected on all clients (browser windows) of a
-        given device.
+      > Using the real-time socket protocol, these User changes are
+      > dynamically reflected on all clients (browser windows) of a
+      > given device.
 
     - The server maintains bi-directional relationship between
       Device(User)/Socket(window)
@@ -161,9 +164,10 @@ that are maintained by our server:
    This is where deviceIdFull comes into play:
    `deviceIdFull = deviceId + clientAccessIP`
 
-   The authentication process retains all the clientIP addresses that
-   a user authenticates on.  Only those IP addresses are allowed for
-   auto-authentication (i.e. auto sign-in at app startup).
+   The authentication process persistently retains all the clientIP
+   addresses that a user authenticates on.  Only those IP addresses
+   are allowed for auto-authentication (i.e. auto sign-in at app
+   startup).
 
    This means that when a user accesses the app from a different
    location (a different WiFi router / IP address), they will
@@ -216,10 +220,9 @@ are safegaurds in place that minimize it's usefulness.
    
    That being said, this should NEVER exist concurrently.  In other
    words we should never see multiple active device objects with the
-   same deviceId.  This indicates some malicious activity _(or
-   inappropriate sharing of acount information)_.  For example, the
-   localStorage of one user's machine has been accessed and copied to
-   another machine.
+   same deviceId.  This indicates some malicious activity.  For
+   example, the localStorage of one user's machine has been accessed
+   and copied to another machine.
    
    The system will actively check for this scenerio, and mark it in
    such a way that requires the user to re-authenticate.

@@ -235,12 +235,12 @@ function createUser() {
     },
 
     // sync user changes from 'pre-authentication' event
-    preAuthComplete: (userState) => {
+    preAuthComplete: (userState, userMsg) => {
       // reflexively update our custom store to reflect these changes
       update(state => ({...state, ...userState}));
 
       // display welcome message
-      alert.display(`Welcome ${get(user).getUserName()}`);
+      alert.display(userMsg);
     },
 
 	};
@@ -286,8 +286,8 @@ export function registerUserSocketHandlers(_socket) {
   // service the 'pre-authentication' event (from the server)
   // ... this happens on app initialization
   // RETURN void ... this is a push event only - no response is possible
-  socket.on('pre-authentication', (userState) => {
-    user.preAuthComplete(userState);
+  socket.on('pre-authentication', (userState, userMsg) => {
+    user.preAuthComplete(userState, userMsg);
   });
 
   // service the 'user-auth-changed' broadcast notification (from the server)
@@ -296,6 +296,22 @@ export function registerUserSocketHandlers(_socket) {
   // RETURN void ... this is a broadcast event - no response is possible
   socket.on('user-auth-changed', (userState) => {
     user.userAuthChanged(userState);
+  });
+
+  // service the 'set-temp-entry' request (from the server)
+  // RETURN (via ack): token <string>
+  socket.on('set-temp-entry', (key, val, ack) => {
+    localStorage.setItem(key, val);
+    setTimeout(() => { // clear temporary entry after 20 seconds
+      localStorage.removeItem(key);
+    }, 20*1000);
+    return ack();
+  });
+
+  // service the 'get-temp-entry' request (from the server)
+  // RETURN (via ack): token <string>
+  socket.on('get-temp-entry', (key, ack) => {
+    return ack({value: localStorage.getItem(key)});
   });
 }
 
