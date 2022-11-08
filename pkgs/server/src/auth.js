@@ -1185,8 +1185,6 @@ export async function preAuthenticate(socket) {
       // the user is automatically accepted in this existing session
       log(`device ${deviceIdFull} pre-existed (re-used): `, prettyPrint({device}));
       user = device.user;
-
-      // AI: ??## also WARN user if this connection results in multiple IDE apps (socket.data.clientType === 'ide')
     }
 
     // CREATE a new user/device, on first-use (for a not-previously active user/device)
@@ -1339,9 +1337,17 @@ export async function preAuthenticate(socket) {
     // setup the bi-directional relationship between Device(User)/Socket(window)
     setupDeviceSocketRelationship(device, socket);
 
+    // warn user if this connection results in multiple IDE apps for a given device/user
+    const sockets      = await getSocketsInDevice(device);
+    const numOfIDEs    = sockets.reduce((count, sock) => count + (sock.data.clientType === 'ide' ? 1 : 0), 0);
+    const warnMultiIDE = socket.data.clientType === 'ide' && numOfIDEs > 1;
+
     // communicate the pre-authentication to this client (socket)
     const userState = extractUserState(user);
     userMsg = userMsg || `Welcome ${user.getUserName()}`; // ... default userMsg if not explicitly set
+    if (warnMultiIDE) {
+      userMsg += '  ... WARNING: it is NOT recommended to run multiple IDEs for a given account (NO synchronization occurs between model changes in multiple IDEs. ?? POOP';
+    }
     sendPreAuthentication(socket, userState, userMsg);
 
     // log all devices AFTER setup is complete
