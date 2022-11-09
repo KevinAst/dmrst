@@ -1150,13 +1150,14 @@ export async function preAuthenticate(socket) {
   //         these dynamics).
 
   // working vars scoped outside of try/catch block for error processing recovery
-  let clientAccessIP = '';        // the client IP (access point ... i.e. router)
-  let deviceId       = undefined; // the client-managed logical deviceId (a persisted random num via localStorage)
-  let deviceIdFull   = undefined; // device key (combining deviceId/clientAccessIP)
-  let device         = undefined; // the device obj, containing user, and managing concurrent client sessions (i.e. sockets - alias to browser window)
-  let user           = undefined; // contained in device
-  let userMsg        = '';        // the message to send to the user upon completion (defaults to a Welcome msg)
-  let issueEmail     = '';        // an email to send an issue to
+  let clientAccessIP   = '';        // the client IP (access point ... i.e. router)
+  let deviceId         = undefined; // the client-managed logical deviceId (a persisted random num via localStorage)
+  let deviceIdFull     = undefined; // device key (combining deviceId/clientAccessIP)
+  let device           = undefined; // the device obj, containing user, and managing concurrent client sessions (i.e. sockets - alias to browser window)
+  let user             = undefined; // contained in device
+  let userMsg          = '';        // the message to send to the user upon completion (defaults to a Welcome msg)
+  let issueEmail       = '';        // an email to send an issue to
+  let processRestarted = false;     // prevent finally block from running (on restart scenario)
 
   // NOTE: the goal of this try/catch block is to fully define the working vars (above) - to be used in subsequent steps
   try { // ... try/catch preventing errors from crashing our server (some errors may be from our client)
@@ -1240,6 +1241,8 @@ export async function preAuthenticate(socket) {
       //       BECAUSE: the hacker could be active first (via: AUTO-ACCESS-2 ... see below)
       //                ... this is less likely, but still a possibility
       if (tempVal !== tempValOnPendingSession) {
+        // ?? new log ... seeing this situation in unexpected situations
+        log.f(`***************** STOLEN IDENTITY DETECTED: `, {key: tempKey, sentToExistingSession: tempVal, receivedFromPendingSession: tempValOnPendingSession});
         issueEmail = device.user.email; // ... may be '' if device is NOT signed in ... typically this will be the real user ... however if the hacker is IN first and they have signed-in on their account, the email will go to them :-(
         throw new Error('STOLEN IDENTITY DETECTED'); // ... see special logic in catch (of try/catch)
       }
@@ -1332,12 +1335,25 @@ export async function preAuthenticate(socket) {
       populateUserProfile(user);
 
       // create our new device (containing our newly created user)
-      // ??%% can we prevent errors on race conditions of multi-windows when server is restarted USING a try/catch and retry in an async timeout
-      //      >>> createDevice() protects itself from creating duplicate devices with the same key
-      //          ***ERROR*** createDevice() cannot create duplicate device with key: a518c5f7-4c88-4560-afb2-d0491cab49f9@/@127.0.0.1
-      //      ... RETRY needs to start over completely: in preAuthenticate()
-      //      ... see journal notes
-      device = createDevice(deviceIdFull, deviceId, clientAccessIP, user);
+      try {
+        device = createDevice(deviceIdFull, deviceId, clientAccessIP, user);
+      }
+      catch(e) { // ... ERROR: we attempted to create a duplicate device key
+        // Restart our entire preAuthenticate() process to resolve this race condition
+        // RACE CONDITION:
+        //  - multiple windows are competing to join the same device
+        //  - typically this happens during a server restart WHEN multiple windows from the same browser are running
+        //  - because TWO or MORE windows are setting up communication concurrently
+        //    * due to the async nature of preAuthenticate()
+        //    * they BOTH may think they are the first one in, and are attempting to create the device
+        // >> FIX: Very simply, we start all over, allowing the 2nd attempt to pick up the existing device correctly
+        //         NOTE: This has been tested and it works!
+        //               We are NOT concerned with an infinite loop here,
+        //               BECAUSE the 2nd attempt will immediately recognize the existing device :-)
+        log.f(`***************** RACE CONDITION DETECTED resolving a race condition (competing with multiple window startup) trying to create the same device ... FIX: restart our process`, e);
+        processRestarted = true; // ... prevent finally block from running in this process (since we have restarted)
+        return await preAuthenticate(socket); // ... this restart is very simple - just call it (no need for a timeout)
+      }
 
     } // ... end of: CREATE a new user/device, on first-use (for a not-previously active user/device)
 
@@ -1406,27 +1422,30 @@ export async function preAuthenticate(socket) {
 
     // AI: consider error conditions in this code
 
-    // setup the bi-directional relationship between Device(User)/Socket(window)
-    setupDeviceSocketRelationship(device, socket);
+    // do NOT run this finally block when our process has been restarted
+    if (!processRestarted) {
+      // setup the bi-directional relationship between Device(User)/Socket(window)
+      setupDeviceSocketRelationship(device, socket);
 
-    // warn user if this connection results in multiple IDE apps for a given device/user
-    // ... NOTE: At first glance you may think this check is needed on sign-in
-    //           since it propagates identity change to other windows of a browser instance (see: broadcastUserAuthChanged)
-    //           HOWEVER, this is NOT correct - these windows had already been using multiple IDE apps (sign-in didn't change that)
-    const sockets      = await getSocketsInDevice(device);
-    const numOfIDEs    = sockets.reduce((count, sock) => count + (sock.data.clientType === 'ide' ? 1 : 0), 0);
-    const warnMultiIDE = socket.data.clientType === 'ide' && numOfIDEs > 1;
+      // warn user if this connection results in multiple IDE apps for a given device/user
+      // ... NOTE: At first glance you may think this check is needed on sign-in
+      //           since it propagates identity change to other windows of a browser instance (see: broadcastUserAuthChanged)
+      //           HOWEVER, this is NOT correct - these windows had already been using multiple IDE apps (sign-in didn't change that)
+      const sockets      = await getSocketsInDevice(device);
+      const numOfIDEs    = sockets.reduce((count, sock) => count + (sock.data.clientType === 'ide' ? 1 : 0), 0);
+      const warnMultiIDE = socket.data.clientType === 'ide' && numOfIDEs > 1;
 
-    // communicate the pre-authentication to this client (socket)
-    const userState = extractUserState(user);
-    userMsg = userMsg || `Welcome ${user.getUserName()}`; // ... default userMsg if not explicitly set
-    if (warnMultiIDE) {
-      userMsg += '  ... WARNING: it is NOT recommended to run multiple IDEs for a given account (NO synchronization occurs between model changes in multiple IDEs.';
+      // communicate the pre-authentication to this client (socket)
+      const userState = extractUserState(user);
+      userMsg = userMsg || `Welcome ${user.getUserName()}`; // ... default userMsg if not explicitly set
+      if (warnMultiIDE) {
+        userMsg += '  ... WARNING: it is NOT recommended to run multiple IDEs for a given account (NO synchronization occurs between model changes in multiple IDEs.';
+      }
+      sendPreAuthentication(socket, userState, userMsg);
+
+      // log all devices AFTER setup is complete
+      logAllDevices(`All Devices AFTER preAuthenticate() of socket: ${socket.id}, device: ${socket.data.deviceIdFull}:`, log);
     }
-    sendPreAuthentication(socket, userState, userMsg);
-
-    // log all devices AFTER setup is complete
-    logAllDevices(`All Devices AFTER preAuthenticate() of socket: ${socket.id}, device: ${socket.data.deviceIdFull}:`, log);
   }
 }
 
