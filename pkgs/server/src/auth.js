@@ -38,6 +38,7 @@ import {isDev}               from './util/env';
 import {prettyPrint}         from './util/prettyPrint';
 import {msgClient}           from './chat';
 import randomNumber          from 'random-number-csprng';
+import {encrypt, decrypt}    from './util/encryption';
 import storage               from 'node-persist'; // AI: temp lib used to persist PriorAuthDB TILL we hook into DB
 import logger from './core/util/logger';
 const  logPrefix = 'vit:server:auth';
@@ -109,7 +110,7 @@ export default function registerAuthHandlers(socket) {
     // generate the token to be sent to our client
     const token = encodeUserToken(user);
 
-    // acknowledge success
+    // acknowledge 'register-guest' success
     // ... for the initiating client, this is how it is updated
     //     >>> it knows to update localStorage too
     // ... for other clients of this device, they are updated via the broadcast event (above)
@@ -169,7 +170,7 @@ export default function registerAuthHandlers(socket) {
       });
     }
 
-    // acknowledge success (i.e. a verification code has been emailed)
+    // acknowledge 'sign-in' success (i.e. a verification code has been emailed)
     return ack();
   });
 
@@ -255,7 +256,7 @@ export default function registerAuthHandlers(socket) {
     // log all devices AFTER sign-in-verification is complete
     logAllDevices(`All Devices AFTER 'sign-in-verification' of socket: ${socket.id}, device: ${socket.data.deviceIdFull}:`, log);
 
-    // acknowledge success
+    // acknowledge 'sign-in-verification' success
     // ... for the initiating client, this is how it is updated
     //     >>> it knows to update localStorage too
     // ... for other clients of this device, they are updated via the broadcast event (above)
@@ -301,7 +302,7 @@ export default function registerAuthHandlers(socket) {
       });
     }
 
-    // acknowledge success (i.e. a verification code has been emailed)
+    // acknowledge 'sign-in-verification-resend-code' success (i.e. a verification code has been emailed)
     return ack();
 
   });
@@ -371,7 +372,7 @@ export default function registerAuthHandlers(socket) {
     // log all devices AFTER sign-in-verification is complete
     logAllDevices(`All Devices AFTER 'sign-out' of socket: ${socket.id}, device: ${socket.data.deviceIdFull}:`, log);
 
-    // acknowledge success
+    // acknowledge 'sign-out' success
     // ... for the initiating socket, this return value is how it is informed/updated
     //     >>> KEY: it knows to update localStorage too
     // ... for other clients of various devices, they are updated
@@ -649,12 +650,19 @@ const tokenDelim = '#/#';
 //* Generate an encrypted user token from the supplied user
 //* ... suitable to be retained on the client
 //* ... and used in our preAuthenticate process
-//* RETURN: void
+//* RETURN: encrypted user token
 //*---------------------------------------------------------
 function encodeUserToken(user) {
-  const token = user.email + tokenDelim + user.guestName;
-  // AI: encrypt
-  return token;
+  // encoding: guestName#/#email
+  // ... placing email SECOND
+  //     making it more obscure to manually inject (since we DO support un-encrypted plain text)
+  const token = user.guestName + tokenDelim + user.email;
+
+  // encrypt
+  // ... currently do NOT handle error from internal encryption problem
+  const encryptedToken = encrypt(token);
+
+  return encryptedToken;
 }
 
 //*---------------------------------------------------------
@@ -664,8 +672,31 @@ function encodeUserToken(user) {
 //* RETURN: {email, guestName}
 //*---------------------------------------------------------
 function decodeUserToken(token) {
-  // AI: decrypt token
-  const [email, guestName] = token.split(tokenDelim);
+
+  // decrypt token
+  // ... we explicitly handle errors (since this token is coming from the client)
+  let plainToken = tokenDelim;
+  try {
+    plainToken = decrypt(token);
+  }
+  catch(e) {
+    let errMsg = `***WARNING** a problem occurred during decryption of token: '${token}'`
+    // accept plain text (un-encrypted tokens)
+    if (token.includes(tokenDelim)) {
+      plainToken = token;
+      errMsg += ` ... the token WAS NOT encrypted (so we used it as-is)`;
+    }
+    else {
+      errMsg += ` ... punting and NOT using the token :-(`;
+    }
+    log.f(errMsg, e);
+  }
+
+  // encoding: guestName#/#email
+  // ... placing email SECOND
+  //     making it more obscure to manually inject (since we DO support un-encrypted plain text)
+  const [guestName, email] = plainToken.split(tokenDelim);
+
   return {email, guestName};
 }
 
@@ -898,7 +929,7 @@ async function logAllDevices(msg='ALL DEVICES', myLog=log) {
     for (const device of allDevices) {
       const entry = {device};
       const sockets   = await getSocketsInDevice(device);
-      entry.socketIds = sockets.map(socket => socket.id);
+      entry.socketIds = sockets.map(socket => `${socket.id} - ${socket.data.clientType}`);
       allEntries.push(entry);
     }
     myLog(`${msg} ... total: ${allDevices.length} ... `, prettyPrint(allEntries));
@@ -1102,6 +1133,17 @@ export async function preAuthenticate(socket) {
     // obtain the clientAccessIP associated to the supplied socket header
     clientAccessIP = gleanClientAccessIPFromHeader(socket);
     log(`using clientAccessIP (gleaned from socket header): ${clientAccessIP}`);
+    // ??## log/alert when the '::ffff:' phenomenon happens
+    if (clientAccessIP.includes('ffff')) {
+      log(` `);
+      log(`XX##************* TRY 19`);
+      log(`XX##************* the '::ffff:' phenomenon just occurred:`, {
+        header: socket.handshake.headers['x-forwarded-for'],
+        remoteAddress: socket.request.connection.remoteAddress
+      });
+      log(`XX##************* `);
+      log(` `);
+    }
 
     // obtain the deviceId of this client
     deviceId = await getDeviceIdFromClient(socket);
@@ -1265,6 +1307,11 @@ export async function preAuthenticate(socket) {
       populateUserProfile(user);
 
       // create our new device (containing our newly created user)
+      // ??%% can we prevent errors on race conditions of multi-windows when server is restarted USING a try/catch and retry in an async timeout
+      //      >>> createDevice() protects itself from creating duplicate devices with the same key
+      //          ***ERROR*** createDevice() cannot create duplicate device with key: a518c5f7-4c88-4560-afb2-d0491cab49f9@/@127.0.0.1
+      //      ... RETRY needs to start over completely: in preAuthenticate()
+      //      ... see journal notes
       device = createDevice(deviceIdFull, deviceId, clientAccessIP, user);
 
     } // ... end of: CREATE a new user/device, on first-use (for a not-previously active user/device)
@@ -1338,6 +1385,9 @@ export async function preAuthenticate(socket) {
     setupDeviceSocketRelationship(device, socket);
 
     // warn user if this connection results in multiple IDE apps for a given device/user
+    // ... NOTE: At first glance you may think this check is needed on sign-in
+    //           since it propagates identity change to other windows of a browser instance (see: broadcastUserAuthChanged)
+    //           HOWEVER, this is NOT correct - these windows had already been using multiple IDE apps (sign-in didn't change that)
     const sockets      = await getSocketsInDevice(device);
     const numOfIDEs    = sockets.reduce((count, sock) => count + (sock.data.clientType === 'ide' ? 1 : 0), 0);
     const warnMultiIDE = socket.data.clientType === 'ide' && numOfIDEs > 1;
@@ -1346,7 +1396,7 @@ export async function preAuthenticate(socket) {
     const userState = extractUserState(user);
     userMsg = userMsg || `Welcome ${user.getUserName()}`; // ... default userMsg if not explicitly set
     if (warnMultiIDE) {
-      userMsg += '  ... WARNING: it is NOT recommended to run multiple IDEs for a given account (NO synchronization occurs between model changes in multiple IDEs. ?? POOP';
+      userMsg += '  ... WARNING: it is NOT recommended to run multiple IDEs for a given account (NO synchronization occurs between model changes in multiple IDEs.';
     }
     sendPreAuthentication(socket, userState, userMsg);
 
