@@ -37,7 +37,7 @@ import {socketAckFn_timeout} from './core/util/socketIOUtils';
 import {isDev}               from './util/env';
 import {prettyPrint}         from './util/prettyPrint';
 import {msgClient}           from './chat';
-import randomNumber          from 'random-number-csprng';
+import crypto                from 'crypto'; //... the node.js built-in crypto library
 import {encrypt, decrypt}    from './util/encryption';
 import storage               from 'node-persist'; // AI: temp lib used to persist PriorAuthDB TILL we hook into DB
 import logger from './core/util/logger';
@@ -157,7 +157,7 @@ export default function registerAuthHandlers(socket) {
 
     // generate and send email to user with verification code
     try {
-      await generateEmailVerificationCode(socket, email);
+      generateEmailVerificationCode(socket, email);
       await sendEmailVerificationCode(socket);
     }
     catch(e) {
@@ -446,6 +446,24 @@ async function clearPriorAuthDB(email) {
   }
 }
 
+//*---------------------------------------------------------
+//* Generate a "stringified" cryptographically strong random number between the supplied min/max.
+//* RETURN: <string> stringified random number between min/max
+//*---------------------------------------------------------
+function randomNumberStr(min, max) {
+  // generate a cryptographically strong random number
+  const arr = new Uint32Array(1);
+  crypto.webcrypto.getRandomValues(arr);
+
+  // convert our random integer to a floating point from 0-1
+  const randomFloat = arr[0] / (0xffffffff + 1);
+
+  // convert to a stringified integer within range
+  const randomStr = Math.floor(randomFloat * (max - min + 1) + min) + '';
+
+  // that's all folks :-)
+  return randomStr;
+}
 
 //*---------------------------------------------------------
 //* Generate a verification code for the supplied email,
@@ -453,14 +471,10 @@ async function clearPriorAuthDB(email) {
 //* RETURN: void (promise)
 //* ERROR:  via (promise) - unsuccessful operation (to be handled by invoker)
 //*---------------------------------------------------------
-async function generateEmailVerificationCode(socket, email) {
+function generateEmailVerificationCode(socket, email) {
 
-  // generate verification code
-  // ... see: https://blog.logrocket.com/building-random-number-generator-javascript-nodejs/
-  //          Generate Cryptographically Secure Pseudo-Random Numbers
-  //          https://www.npmjs.com/package/random-number-csprng
-  //          $ npm install --save random-number-csprng
-  const verificationCode = await randomNumber(100000, 999999) + ''; /* convert to string for easy comparison */
+  // generate the random verification code (between 100,000 and 999,999)
+  const verificationCode = randomNumberStr(100000, 999999);
   // log(`verificationCode: ${verificationCode}`); // NO NO: info is too sensitive
 
   // expire verification code in 5 mins
@@ -1200,8 +1214,8 @@ export async function preAuthenticate(socket) {
       // confirm the requesting browser instance is the same as the existing browsers of this device!
       const sockets = await getSocketsInDevice(device);
       const existingSessionSocket = sockets[0]; // ... only need to check the first socket (all will have the same browser characteristic)
-      const tempKey = 'TEMP-' + await randomNumber(100000, 999999); // ... convert to string for easy comparison
-      const tempVal = await randomNumber(100000, 999999) + '';      //     ditto
+      const tempKey = 'TEMP-' + randomNumberStr(100000, 999999); // ... convert to string for easy comparison
+      const tempVal = randomNumberStr(100000, 999999) + '';      //     ditto
 
       await setTempEntryOnClient(existingSessionSocket, tempKey, tempVal);            // set temp entry on existing session
       const tempValOnPendingSession = await getTempEntryFromClient(socket, tempKey);  // get temp entry on new session (if same browser, should be the same)
