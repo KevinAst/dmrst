@@ -899,6 +899,28 @@ function gleanClientAccessIPFromHeader(socket) {
     clientAccessIP = '127.0.0.1';
   }
 
+  // AI: there is some phenomenon under "some circumstances" where the 'x-forwarded-for' header is undefined
+  //     - I have seen this randomly in dev localhost
+  //     - just refreshing the browser puts the header back
+  //     - NOT sure what is going on here
+  if (clientAccessIP.includes('ffff')) {
+    log.f(` `);
+    log.f(`************* `);
+    log.f(`************* the '::ffff:' phenomenon just occurred:`, {
+      header:        socket.handshake.headers['x-forwarded-for'],
+      remoteAddress: socket.request.connection.remoteAddress
+    });
+    log.f(`************* `);
+    log.f(` `);
+
+    // for now I FIX the "very narrow" case of dev here
+    // ... I assume this is a more broad problem (for production IPs)
+    if (clientAccessIP === '::ffff:127.0.0.1') {
+      clientAccessIP = '127.0.0.1';
+      log.f(`************* converting '::ffff:127.0.0.1' TO '127.0.0.1'`);
+    }
+  }
+
   return clientAccessIP;
 }
 
@@ -1147,17 +1169,6 @@ export async function preAuthenticate(socket) {
     // obtain the clientAccessIP associated to the supplied socket header
     clientAccessIP = gleanClientAccessIPFromHeader(socket);
     log(`using clientAccessIP (gleaned from socket header): ${clientAccessIP}`);
-    // ??## log/alert when the '::ffff:' phenomenon happens
-    if (clientAccessIP.includes('ffff')) {
-      log(` `);
-      log(`XX##************* TRY 19`);
-      log(`XX##************* the '::ffff:' phenomenon just occurred:`, {
-        header: socket.handshake.headers['x-forwarded-for'],
-        remoteAddress: socket.request.connection.remoteAddress
-      });
-      log(`XX##************* `);
-      log(` `);
-    }
 
     // obtain the deviceId of this client
     deviceId = await getDeviceIdFromClient(socket);
