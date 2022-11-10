@@ -1241,8 +1241,11 @@ export async function preAuthenticate(socket) {
       //       BECAUSE: the hacker could be active first (via: AUTO-ACCESS-2 ... see below)
       //                ... this is less likely, but still a possibility
       if (tempVal !== tempValOnPendingSession) {
-        // ?? new log ... seeing this situation in unexpected situations
-        log.f(`***************** STOLEN IDENTITY DETECTED: `, {key: tempKey, sentToExistingSession: tempVal, receivedFromPendingSession: tempValOnPendingSession});
+        log.f(`***************** STOLEN IDENTITY DETECTED: `, {
+          key:                        tempKey,
+          sentToExistingSession:      tempVal,
+          receivedFromPendingSession: tempValOnPendingSession
+        });
         issueEmail = device.user.email; // ... may be '' if device is NOT signed in ... typically this will be the real user ... however if the hacker is IN first and they have signed-in on their account, the email will go to them :-(
         throw new Error('STOLEN IDENTITY DETECTED'); // ... see special logic in catch (of try/catch)
       }

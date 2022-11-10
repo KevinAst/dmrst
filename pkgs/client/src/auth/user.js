@@ -311,7 +311,35 @@ export function registerUserSocketHandlers(_socket) {
   // service the 'get-temp-entry' request (from the server)
   // RETURN (via ack): token <string>
   socket.on('get-temp-entry', (key, ack) => {
-    return ack({value: localStorage.getItem(key)});
+    let value = localStorage.getItem(key);
+
+    // if we have a value, we are good-to-go
+    if (value) {
+      return ack({value});
+    }
+
+    // There are rare/sporadic cases where there is some timing issue
+    // - PRESUMABLY with localStorage - where it needs a bit of time to stabilize
+    // - the server process has been checked and double checked - confirming
+    //   it is properly blocking (between 'set-temp-entry' and 'get-temp-entry')
+    // - I'm not exactly sure what the problem is (the code seems to be fine)
+    // This was typically seen (before this fix/workaround) 
+    // - with server restarts (or client restarts - on dev client)
+    // - when multiple windows were running the app
+    // BEFORE we return a null, which is a big deal (indicating identity theft)
+    // we give it a bit of time to settle down:
+    // - 20 mils:
+    //   * long enough
+    //     - to be effective (in my tests)
+    //   * short enough to work within the confines of:
+    //     - user wait time
+    //     - the server timeout for this request (2 secs)
+    //     - the clearing of "temp" localStorage entries in 'set-temp-entry' (above - ?? secs)
+    setTimeout(() => {
+      value = localStorage.getItem(key);
+      value && log.f(`'get-temp-entry' FALSE-POSITIVE identity theft AVOIDED ... for key: '${key}', returning: '${value}'`);
+      return ack({value});
+    }, 20);
   });
 }
 
