@@ -302,9 +302,15 @@ export function registerUserSocketHandlers(_socket) {
   // RETURN (via ack): token <string>
   socket.on('set-temp-entry', (key, val, ack) => {
     localStorage.setItem(key, val);
-    setTimeout(() => { // clear temporary entry after 20 seconds
+    // clear temporary entry after a short time:
+    // - 3 secs
+    //   * long enough
+    //     - to NOT conflict with the server timeout for this process (2 secs)
+    //   * short enough to
+    //     - avoid clean-up not happening (if dev client is restarted in rapid succession)
+    setTimeout(() => {
       localStorage.removeItem(key);
-    }, 20*1000);
+    }, 3*1000);
     return ack();
   });
 
@@ -334,7 +340,7 @@ export function registerUserSocketHandlers(_socket) {
     //   * short enough to work within the confines of:
     //     - user wait time
     //     - the server timeout for this request (2 secs)
-    //     - the clearing of "temp" localStorage entries in 'set-temp-entry' (above - ?? secs)
+    //     - the clearing of "temp" localStorage entries in 'set-temp-entry' (above - 3 secs)
     setTimeout(() => {
       value = localStorage.getItem(key);
       value && log.f(`'get-temp-entry' FALSE-POSITIVE identity theft AVOIDED ... for key: '${key}', returning: '${value}'`);
