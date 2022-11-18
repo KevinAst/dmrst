@@ -8,10 +8,15 @@
  *
  * This module manages:
  *   - User objects
+ *
  *   - Device objects
+ *      * the Device holds a User object
+ *        ... all sockets (browser windows) of a device have the same user and that authority
+ *        ... and the sign-in/sign-out is synced across these sockets (browser windows)
+ *
  *   - bi-directional relationship between Device(User)/Socket(window)
  *
- *      Device (user) --1:M--< Socket (browser windows) with back-ref socket.data.deviceIdFull
+ *      Device (user) --1:M--< Socket (browser windows) with back-ref socket.data.deviceId
  *
  *      * the relationship FROM Device TO Socket is maintained by a "room" (part of socket.io)
  *        - this means the dynamics of socket disconnects, is automatically maintained by socket.io
@@ -20,16 +25,15 @@
  *          * this grouping has a similar scope to that of the browser localStorage
  *
  *      * socket.data: ... contains a number of useful items
- *         - deviceIdFull:   the key to access the Device object (a back reference of our bi-directional relationship)
- *         - deviceId:       the browser's logical device identifier (a virtual MAC so-to-speak) ...... part of deviceIdFull
- *         - clientAccessIP: the internet access point for this client (think of as router/WiFi IP) ... part of deviceIdFull
+ *         - deviceId:       the browser's logical device identifier (a virtual MAC so-to-speak) ... key to access the Device obj
  *         - clientType:     'ide'/'sys'
+ *         - clientAccessIP: the internet access point for this client (think of as router/WiFi IP)
  *         - userAgent:      identifies the specific browser in use
  *
  * Of Interest is our PUBLIC API:
- *   + getDevice(deviceIdFull|device|socket|socketId):   Device
- *   + getUser(deviceIdFull|device|socket|socketId):     User (same as: device.user)
- *   + getUserName(deviceIdFull|device|socket|socketId): string
+ *   + getDevice(deviceId|device|socket|socketId):   Device
+ *   + getUser(deviceId|device|socket|socketId):     User (same as: device.user)
+ *   + getUserName(deviceId|device|socket|socketId): string
  */
 
 import sendGridMail          from '@sendgrid/mail';
@@ -254,7 +258,7 @@ export default function registerAuthHandlers(socket) {
     const token = encodeUserToken(user);
 
     // log all devices AFTER sign-in-verification is complete
-    logAllDevices(`All Devices AFTER 'sign-in-verification' of socket: ${socket.id}, device: ${socket.data.deviceIdFull}:`, log);
+    logAllDevices(`All Devices AFTER 'sign-in-verification' of socket: ${socket.id}, device: ${socket.data.deviceId}:`, log);
 
     // acknowledge 'sign-in-verification' success
     // ... for the initiating client, this is how it is updated
@@ -370,7 +374,7 @@ export default function registerAuthHandlers(socket) {
     const token     = encodeUserToken(user);
 
     // log all devices AFTER sign-in-verification is complete
-    logAllDevices(`All Devices AFTER 'sign-out' of socket: ${socket.id}, device: ${socket.data.deviceIdFull}:`, log);
+    logAllDevices(`All Devices AFTER 'sign-out' of socket: ${socket.id}, device: ${socket.data.deviceId}:`, log);
 
     // acknowledge 'sign-out' success
     // ... for the initiating socket, this return value is how it is informed/updated
@@ -394,7 +398,7 @@ export default function registerAuthHandlers(socket) {
 
 // PriorAuthDB: currently mimicking localStorage till we have a full DB implementation
 //   key:   email
-//   value: [deviceIdFull, ...] <<< all devices previously authenticated on
+//   value: [deviceId+clientAccessIP, ...] <<< all devices/clientAccessIPs previously authenticated on
 
 //*---------------------------------------------------------
 //* DB Op:
@@ -406,9 +410,9 @@ async function hasPriorAuthDB(email,
                               deviceId,
                               clientAccessIP) {
   // return true; // DO THIS - for hardcoded rendition
-  const deviceIdFull = encodeDeviceIdFull(deviceId, clientAccessIP);
-  const allDevices   = await storage.getItem(email) || [];
-  return allDevices.includes(deviceIdFull);
+  const combinedValue = combineDeviceIdAndClientAccessIP(deviceId, clientAccessIP);
+  const allDevices    = await storage.getItem(email) || [];
+  return allDevices.includes(combinedValue);
 }
 
 //*---------------------------------------------------------
@@ -421,12 +425,12 @@ async function addPriorAuthDB(email,
                               deviceId,
                               clientAccessIP) {
   // return; // DO THIS - for hardcoded rendition (no-op)
-  const deviceIdFull = encodeDeviceIdFull(deviceId, clientAccessIP);
-  const allDevices   = await storage.getItem(email) || [];
+  const combinedValue = combineDeviceIdAndClientAccessIP(deviceId, clientAccessIP);
+  const allDevices    = await storage.getItem(email) || [];
 
   // add if not already there
-  if (!allDevices.includes(deviceIdFull)) {
-    await storage.setItem(email, [...allDevices, deviceIdFull]);
+  if (!allDevices.includes(combinedValue)) {
+    await storage.setItem(email, [...allDevices, combinedValue]);
   }
 }
 
@@ -444,6 +448,15 @@ async function clearPriorAuthDB(email) {
   if (allDevices) {
     await storage.removeItem(email);
   }
+}
+
+//*---------------------------------------------------------
+//* DB Op (support):
+//* Combine the supplied deviceId/clientAccessIP
+//* RETURN: string
+//*---------------------------------------------------------
+function combineDeviceIdAndClientAccessIP(deviceId, clientAccessIP) {
+  return deviceId + '@/@' + clientAccessIP;
 }
 
 //*---------------------------------------------------------
@@ -740,8 +753,8 @@ function extractUserState(user) {
 
 
 //*-------------------------------------------------
-//* return the user associate to the supplied deviceIdFull|device|socket|socketId (one in the same).
-//* PARM:   ref: deviceIdFull | Device | socket
+//* return the user associate to the supplied deviceId|device|socket|socketId (one in the same).
+//* PARM:   ref: deviceId | Device | socket
 //* RETURN: User ... undefined for NOT-FOUND
 //*-------------------------------------------------
 export function getUser(ref) {
@@ -750,8 +763,8 @@ export function getUser(ref) {
 
 
 //*-------------------------------------------------
-//* return the user name associate to the supplied deviceIdFull|device|socket|socketId (one in the same).
-//* PARM:   ref: deviceIdFull | Device | socket
+//* return the user name associate to the supplied deviceId|device|socket|socketId (one in the same).
+//* PARM:   ref: deviceId | Device | socket
 //* RETURN: userName ... undefined for NOT-FOUND
 //*-------------------------------------------------
 export function getUserName(ref) {
@@ -770,16 +783,16 @@ export function getUserName(ref) {
 //* RETURN: void
 //*-------------------------------------------------
 function broadcastUserAuthChanged(deviceRef,       // the device reference, specifying the clients to broadcast to
-                                                   // ... deviceIdFull|device|socket|socketId (one in the same)
+                                                   // ... deviceId|device|socket|socketId (one in the same)
                                   userState,       // the current user state to broadcast
                                   excludeSocket) { // an optional initiating socket to be excluded from this broadcast
                                                    // ... CONTEXT: the initiating socket has already communicated/handled this change (typically via return semantics)
-  const device       = getDevice(deviceRef);
-  const deviceIdFull = device.deviceIdFull;
-  const deviceRm     = deviceRoom(deviceIdFull);
+  const device   = getDevice(deviceRef);
+  const deviceId = device.deviceId;
+  const deviceRm = deviceRoom(deviceId);
 
   // broadcast the 'user-auth-changed' event to all clients of the supplied device
-  log(`broadcastUserAuthChanged() ... broadcast 'user-auth-changed' event - deviceIdFull: '${deviceIdFull}', userState: `, userState);
+  log(`broadcastUserAuthChanged() ... broadcast 'user-auth-changed' event - deviceId: '${deviceId}', userState: `, userState);
   if (excludeSocket) { // ... to ALL room members EXCLUDING socket (API driven by socket)
     excludeSocket.to(deviceRm).emit('user-auth-changed', userState);
   }
@@ -925,17 +938,6 @@ function gleanClientAccessIPFromHeader(socket) {
 }
 
 
-const deviceIdDelim = '@/@';
-
-//*---------------------------------------------------------
-//* Generate the deviceIdFull from the supplied deviceId/clientAccessIP
-//* RETURN: void
-//*---------------------------------------------------------
-function encodeDeviceIdFull(deviceId, clientAccessIP) {
-  return deviceId + deviceIdDelim + clientAccessIP;
-}
-
-
 //******************************************************************************
 //******************************************************************************
 //* Device related code
@@ -944,11 +946,9 @@ function encodeDeviceIdFull(deviceId, clientAccessIP) {
 
 // all active devices
 //   a Map:
-//   deviceIdFull<key>: Device<value>           Room('device-{deviceIdFull}') ---1:M--< socket
-//                       - deviceIdFull<string> primary key
-//                       - deviceId<string>       ... strictly convenience (part of deviceIdFull)
-//                       - clientAccessIP<string> ... strictly convenience (part of deviceIdFull)
-//                       - user<Device>
+//   deviceId<key>: Device<value>           Room('device-{deviceId}') ---1:M--< socket
+//                   - deviceId<string> primary key
+//                   - user<Device>
 const devices = new Map();
 
 // diagnostic logging utility
@@ -965,7 +965,7 @@ async function logAllDevices(msg='ALL DEVICES', myLog=log) {
     for (const device of allDevices) {
       const entry = {device};
       const sockets   = await getSocketsInDevice(device);
-      entry.socketIds = sockets.map(socket => `${socket.id} - ${socket.data.clientType}`);
+      entry.socketIds = sockets.map(socket => `${socket.id} - clientType: ${socket.data.clientType}, clientAccessIP: ${socket.data.clientAccessIP}, userAgent: ${socket.data.userAgent}`);
       allEntries.push(entry);
     }
     myLog(`${msg} ... total: ${allDevices.length} ... `, prettyPrint(allEntries));
@@ -973,16 +973,16 @@ async function logAllDevices(msg='ALL DEVICES', myLog=log) {
 }
 
 //*-------------------------------------------------
-//* return the device associate to the supplied deviceIdFull|device|socket|socketId (one in the same).
-//* PARM:   ref: deviceIdFull | Device | socket
+//* return the device associate to the supplied deviceId|device|socket|socketId (one in the same).
+//* PARM:   ref: deviceId | Device | socket
 //* RETURN: Device ... undefined for NOT-FOUND
 //*-------------------------------------------------
 export function getDevice(ref) {
-  const deviceIdFull = ref?.data?.deviceIdFull /*socket*/ || ref?.deviceIdFull /*device*/ || ref /*deviceIdFull*/;
-  let   device = devices.get(deviceIdFull);
+  const deviceId = ref?.data?.deviceId /*socket*/ || ref?.deviceId /*device*/ || ref /*deviceId*/;
+  let   device = devices.get(deviceId);
   if (!device) { // as a last resort, interpret ref as a socketId
     const socket = io.sockets.sockets.get(ref);
-    device = devices.get(socket?.data?.deviceIdFull);
+    device = devices.get(socket?.data?.deviceId);
   }
   return device;
 }
@@ -991,47 +991,45 @@ export function getDevice(ref) {
 //* create/catalog new device object using supplied parameters
 //* RETURN: Device ... newly created
 //*-------------------------------------------------
-function createDevice(deviceIdFull, deviceId, clientAccessIP, user) {
+function createDevice(deviceId, user) {
 
   // prevent the creation of a duplicate device key
   // ... we do NOT want to cover up the prior device
   // ... NOTE: based on current logic, should NEVER happen (just for good measure)
-  if (getDevice(deviceIdFull)) {
-    throw new Error(`***ERROR*** createDevice() cannot create duplicate device with key: ${deviceIdFull}`);
+  if (getDevice(deviceId)) {
+    throw new Error(`***ERROR*** createDevice() cannot create duplicate device with key: ${deviceId}`);
   }
 
   // create our new device
   const device = {
-    deviceIdFull,   // primary key
-    deviceId,       // ... strictly convenience (part of deviceIdFull)
-    clientAccessIP, // ... strictly convenience (part of deviceIdFull)
+    deviceId,   // primary key
     user};
 
   // catalog our new device
-  devices.set(deviceIdFull, device);
+  devices.set(deviceId, device);
 
   // that's all folks
   return device;
 }
 
 //*-------------------------------------------------
-//* remove the device associate to the supplied socket/device/deviceIdFull (one in the same).
-//* PARM:   ref: deviceIdFull | Device | socket
+//* remove the device associate to the supplied socket/device/deviceId (one in the same).
+//* PARM:   ref: deviceId | Device | socket
 //* RETURN: boolean ... true: removed, false: no-op (device NOT cataloged)
 //*-------------------------------------------------
 function removeDevice(ref) {
-  const deviceIdFull = ref?.data?.deviceIdFull /*socket*/ || ref?.deviceIdFull /*device*/ || ref /*deviceIdFull*/;
-  return devices.delete(deviceIdFull);
+  const deviceId = ref?.data?.deviceId /*socket*/ || ref?.deviceId /*device*/ || ref /*deviceId*/;
+  return devices.delete(deviceId);
 }
 
 //*-------------------------------------------------
 //* return all sockets associated to a given device.
-//* PARM:   ref: deviceIdFull | Device | socket
+//* PARM:   ref: deviceId | Device | socket
 //* RETURN: socket[] VIA promise
 //*-------------------------------------------------
 async function getSocketsInDevice(ref) {
-  const deviceIdFull  = ref?.data?.deviceIdFull /*socket*/ || ref?.deviceIdFull /*device*/ || ref /*deviceIdFull*/;
-  const deviceSockets = await io.in(deviceRoom(deviceIdFull)).fetchSockets(); // ... an array of sockets[]
+  const deviceId  = ref?.data?.deviceId /*socket*/ || ref?.deviceId /*device*/ || ref /*deviceId*/;
+  const deviceSockets = await io.in(deviceRoom(deviceId)).fetchSockets(); // ... an array of sockets[]
   return deviceSockets;
 }
 
@@ -1048,18 +1046,17 @@ async function resetDevice(socket) {
   const device = getDevice(socket);
 
   // define the "old" room, using the "old" deviceId (which needs to be cleaned-up)
-  const oldRoom = deviceRoom(device.deviceIdFull);
+  const oldRoom = deviceRoom(device.deviceId);
 
   // reset the deviceId on our client
   // ... the client actually establishes/retains the new deviceId (a random string)
   const newDeviceId = await resetDeviceIdFromClient(socket);
 
   // un-catalog the device object (since it's key IS GOING TO change)
-  devices.delete(device.deviceIdFull);
+  devices.delete(device.deviceId);
 
   // reflect the new deviceId in our device object
-  device.deviceIdFull = encodeDeviceIdFull(newDeviceId, device.clientAccessIP);
-  device.deviceId     = newDeviceId;
+  device.deviceId = newDeviceId;
 
   // update ALL socket back-references within the NEW deviceId
   // ... this step CAN be done after mutating the device
@@ -1076,15 +1073,15 @@ async function resetDevice(socket) {
   });
 
   // re-catalog the device object (since it's key has changed)
-  devices.set(device.deviceIdFull, device);
+  devices.set(device.deviceId, device);
 }
 
 //*-------------------------------------------------
 //* return  the socket.io room, defining the Device TO Socket relationship
-//* PARM:   deviceIdFull
+//* PARM:   deviceId
 //* RETURN: socket.io room <string>
 //*-------------------------------------------------
-const deviceRoom = (deviceIdFull) => `device-${deviceIdFull}`;
+const deviceRoom = (deviceId) => `device-${deviceId}`;
 
 
 /********************************************************************************
@@ -1102,13 +1099,13 @@ const deviceRoom = (deviceIdFull) => `device-${deviceIdFull}`;
  * of the socket connection:
  * - Device(user) object is established, either newly created or existing reference.
  * - A bi-directional relationship between Device(User)/Socket(window) is setup
- *    Device (user) --1:M--< Socket (browser windows) with back-ref socket.data.deviceIdFull
+ *    Device (user) --1:M--< Socket (browser windows) with back-ref socket.data.deviceId
  *      ... see notes at the top of this module!
  *
  * Once complete, the following PUBLIC API is available:
- *   + getDevice(deviceIdFull|device|socket|socketId):   Device
- *   + getUser(deviceIdFull|device|socket|socketId):     User (same as: device.user)
- *   + getUserName(deviceIdFull|device|socket|socketId): string
+ *   + getDevice(deviceId|device|socket|socketId):   Device
+ *   + getUser(deviceId|device|socket|socketId):     User (same as: device.user)
+ *   + getUserName(deviceId|device|socket|socketId): string
  *********************************************************************************/
 export async function preAuthenticate(socket) {
   const log = logger(`${logPrefix}:preAuthenticate`);
@@ -1151,8 +1148,7 @@ export async function preAuthenticate(socket) {
 
   // working vars scoped outside of try/catch block for error processing recovery
   let clientAccessIP   = '';        // the client IP (access point ... i.e. router)
-  let deviceId         = undefined; // the client-managed logical deviceId (a persisted random num via localStorage)
-  let deviceIdFull     = undefined; // device key (combining deviceId/clientAccessIP)
+  let deviceId         = undefined; // the client-managed logical deviceId (a persisted random num via localStorage) <<< the device Key
   let device           = undefined; // the device obj, containing user, and managing concurrent client sessions (i.e. sockets - alias to browser window)
   let user             = undefined; // contained in device
   let userMsg          = '';        // the message to send to the user upon completion (defaults to a Welcome msg)
@@ -1170,13 +1166,12 @@ export async function preAuthenticate(socket) {
     // obtain the clientAccessIP associated to the supplied socket header
     clientAccessIP = gleanClientAccessIPFromHeader(socket);
     log(`using clientAccessIP (gleaned from socket header): ${clientAccessIP}`);
+    // ... as a convenience hold the clientAccessIP in the socket directly
+    socket.data.clientAccessIP = clientAccessIP;
 
     // obtain the deviceId of this client
     deviceId = await getDeviceIdFromClient(socket);
     log(`using deviceId (gleaned from client app): ${deviceId}`);
-
-    // define deviceIdFull (combination of deviceId/clientAccessIP)
-    deviceIdFull = encodeDeviceIdFull(deviceId, clientAccessIP);
 
     // AUTO-ACCESS-1: for a pre-existing device, the user is automatically accepted in this existing session
     //                PROVIDING the SAME browser instance is being used (definitively confirmed)!
@@ -1219,9 +1214,9 @@ export async function preAuthenticate(socket) {
     //                                (assuming all XSS doors have been shut)
     //                            ... remember, the deviceId changes frequently (on sign-out)
     //                         b. access the system when the real user is NOT actively signed-in
-    device = getDevice(deviceIdFull);
+    device = getDevice(deviceId);
     if (device) {
-      log(`device ${deviceIdFull} pre-existed ... checking to insure the same browser is being used`);
+      log(`device ${deviceId} pre-existed ... checking to insure the same browser is being used`);
 
       // confirm the requesting browser instance is the same as the existing browsers of this device!
       const sockets = await getSocketsInDevice(device);
@@ -1256,14 +1251,14 @@ export async function preAuthenticate(socket) {
 
       // THIS IS IT (for AUTO-ACCESS-1):
       // the user is automatically accepted in this existing session
-      log(`device ${deviceIdFull} pre-existed (re-used): `, prettyPrint({device}));
+      log(`device ${deviceId} pre-existed (re-used): `, prettyPrint({device}));
       user = device.user;
     }
 
     // CREATE a new user/device, on first-use (for a not-previously active user/device)
     // ... potentially pre-authenticated from saved client credentials (an auth token - if any)
     else {
-      log(`device ${deviceIdFull} did NOT pre-exist (was not active) ... creating a new one`);
+      log(`device ${deviceId} did NOT pre-exist (was not active) ... creating a new one`);
 
       // create our new user DEFAULTING to an unregistered guest user
       user = createUser();
@@ -1322,7 +1317,6 @@ export async function preAuthenticate(socket) {
           socket: socket.id,
           clientAccessIP,
           deviceId,
-          deviceIdFull,
           token: {
             email:     emailFromToken, 
             guestName: guestNameFromToken,
@@ -1339,7 +1333,7 @@ export async function preAuthenticate(socket) {
 
       // create our new device (containing our newly created user)
       try {
-        device = createDevice(deviceIdFull, deviceId, clientAccessIP, user);
+        device = createDevice(deviceId, user);
       }
       catch(e) { // ... ERROR: we attempted to create a duplicate device key
         // Restart our entire preAuthenticate() process to resolve this race condition
@@ -1381,9 +1375,8 @@ export async function preAuthenticate(socket) {
     // start from scratch and use content that will create temporary device/user that is an unregistered guest user
     // NOTE: this client/user will ALWAYS be in a device of one TILL they refresh (disconnecting/reconnecting their socket)
     deviceId     = 'SOCKET-FROM-ERROR-' + socket.id; // ... use socket.id (very temporary ... it's all we have)
-    deviceIdFull = encodeDeviceIdFull(deviceId, clientAccessIP);
     user         = createUser(); // ... defaults to: unregistered guest user
-    device       = createDevice(deviceIdFull, deviceId, clientAccessIP, user);
+    device       = createDevice(deviceId, user);
 
     // notify user of problem
     if (e.message === 'STOLEN IDENTITY DETECTED') {
@@ -1447,7 +1440,7 @@ export async function preAuthenticate(socket) {
       sendPreAuthentication(socket, userState, userMsg);
 
       // log all devices AFTER setup is complete
-      logAllDevices(`All Devices AFTER preAuthenticate() of socket: ${socket.id}, device: ${socket.data.deviceIdFull}:`, log);
+      logAllDevices(`All Devices AFTER preAuthenticate() of socket: ${socket.id}, device: ${socket.data.deviceId}:`, log);
     }
   }
 }
@@ -1461,7 +1454,7 @@ export async function preAuthenticate(socket) {
  *   - User object
  *   - Device object
  *   - bi-directional relationship between Device(User)/Socket(window)
- *      Device (user) --1:M--< Socket (browser windows) with back-ref socket.data.deviceIdFull
+ *      Device (user) --1:M--< Socket (browser windows) with back-ref socket.data.deviceId
  *        ... see notes at the top of this module!
  *********************************************************************************/
 export async function clearAuthenticate(socket) {
@@ -1470,7 +1463,7 @@ export async function clearAuthenticate(socket) {
   // NOTE: this is the corollary to setupDeviceSocketRelationship()
 
   // NOTE: even though disconnected, this socket still retains the data we setup on it's connection
-  //       ... socket.data.deviceIdFull
+  //       ... socket.data.deviceId
   //       ... THIS IS GREAT, as it is needed to do our clean up
 
   // NOTE: socket.io infrastructure dynamically reflects the room association when the socket is disconnected
@@ -1483,14 +1476,14 @@ export async function clearAuthenticate(socket) {
   }
 
   // that's all folks
-  logAllDevices(`All Devices AFTER clearAuthenticate() ... disconnect of socket: ${socket.id}, device: ${socket.data.deviceIdFull}:`, log)
+  logAllDevices(`All Devices AFTER clearAuthenticate() ... disconnect of socket: ${socket.id}, device: ${socket.data.deviceId}:`, log)
 }
 
 
 /********************************************************************************
  * setup the bi-directional relationship between Device(User)/Socket(window)
  *
- *   Device (user) --1:M--< Socket (browser windows) with back-ref socket.data.deviceIdFull
+ *   Device (user) --1:M--< Socket (browser windows) with back-ref socket.data.deviceId
  *     ... see notes at the top of this module!
  *
  * RETURN: void
@@ -1498,13 +1491,10 @@ export async function clearAuthenticate(socket) {
 function setupDeviceSocketRelationship(device, socket) {
   // utilize socket.io room to collect all socket/window of this device
   // ... NOTE: socket.io infrastructure dynamically updates this collection on socket disconnect
-  socket.join( deviceRoom(device.deviceIdFull) );
+  socket.join( deviceRoom(device.deviceId) );
 
   // define the back-reference from the socket/window TO device
-  socket.data.deviceIdFull   = device.deviceIdFull;
-  // ... strictly convenience (part of deviceIdFull)
-  socket.data.deviceId       = device.deviceId;
-  socket.data.clientAccessIP = device.clientAccessIP;
+  socket.data.deviceId = device.deviceId;
 }
 
 
