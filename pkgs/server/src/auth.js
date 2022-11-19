@@ -13,6 +13,14 @@
  *      * the Device holds a User object
  *        ... all sockets (browser windows) of a device have the same user and that authority
  *        ... and the sign-in/sign-out is synced across these sockets (browser windows)
+ *      * Device data items:
+ *        - deviceId:       the browser's logical device identifier (a virtual MAC so-to-speak) ... key to access the Device obj
+ *        - user:           the user object associated to this device
+ *        > following convenience (consolidation here is possible because we guarantee all sockets of a devices is from the SAME browser instance)
+ *        - clientAccessIP: the internet access point for this client (think of as router/WiFi IP)
+ *        ~ userAgent:      identifies the specific browser in use <<< NOT INCLUDED (too cryptic)
+ *        - os:             the OS-version
+ *        - browser:        the browser-version
  *
  *   - bi-directional relationship between Device(User)/Socket(window)
  *
@@ -24,11 +32,11 @@
  *          * visualize-it automatically syncs user identity changes to all these windows
  *          * this grouping has a similar scope to that of the browser localStorage
  *
- *      * socket.data: ... contains a number of useful items
- *         - deviceId:       the browser's logical device identifier (a virtual MAC so-to-speak) ... key to access the Device obj
- *         - clientType:     'ide'/'sys'
- *         - clientAccessIP: the internet access point for this client (think of as router/WiFi IP)
- *         - userAgent:      identifies the specific browser in use
+ *   - socket.data: ... contains a number of useful items
+ *     * deviceId:       the browser's logical device identifier (a virtual MAC so-to-speak) ... key to access the Device obj
+ *     * clientType:     'ide'/'sys'
+ *     * clientAccessIP: the internet access point for this client (think of as router/WiFi IP)
+ *     * userAgent:      identifies the specific browser in use
  *
  * Of Interest is our PUBLIC API:
  *   + getDevice(deviceId|device|socket|socketId):   Device
@@ -44,6 +52,7 @@ import {msgClient}           from './chat';
 import crypto                from 'crypto'; //... the node.js built-in crypto library
 import {encrypt, decrypt}    from './util/encryption';
 import storage               from 'node-persist'; // AI: temp lib used to persist PriorAuthDB TILL we hook into DB
+import UAParser              from 'ua-parser-js';
 import logger from './core/util/logger';
 const  logPrefix = 'vit:server:auth';
 const  log = logger(`${logPrefix}`);
@@ -957,15 +966,31 @@ async function logAllDevices(msg='ALL DEVICES', myLog=log) {
     const allDevices = Array.from(devices.values());
     const allEntries = [
       // { 
-      //   device,
-      //   socketIds,
+      //   "device": {
+      //     "deviceId": "26de8f7b-c125-486b-a919-6002e32e1c0f",
+      //     "user": {
+      //       "email": "kevin@wiibridges.com",
+      //       "name": "kevin",
+      //       "enablement": {
+      //         "admin": true
+      //       },
+      //       "guestName": "Petree"
+      //     },
+      //     "clientAccessIP": "127.0.0.1",
+      //     "os": "Windows-10",
+      //     "browser": "Chrome-107.0.0.0"
+      //   },
+      //   "socketIds": [
+      //     "cTI2QOdwzt_K6TDcAAAB - clientType: ide",
+      //     "2YT1FTCr68gT-nISAAAE - clientType: ide"
+      //   ]
       // }
       // ...
     ];
     for (const device of allDevices) {
       const entry = {device};
       const sockets   = await getSocketsInDevice(device);
-      entry.socketIds = sockets.map(socket => `${socket.id} - clientType: ${socket.data.clientType}, clientAccessIP: ${socket.data.clientAccessIP}, userAgent: ${socket.data.userAgent}`);
+      entry.socketIds = sockets.map(socket => `${socket.id} - clientType: ${socket.data.clientType}`);
       allEntries.push(entry);
     }
     myLog(`${msg} ... total: ${allDevices.length} ... `, prettyPrint(allEntries));
@@ -991,7 +1016,7 @@ export function getDevice(ref) {
 //* create/catalog new device object using supplied parameters
 //* RETURN: Device ... newly created
 //*-------------------------------------------------
-function createDevice(deviceId, user) {
+function createDevice(deviceId, user, clientAccessIP, userAgent) {
 
   // prevent the creation of a duplicate device key
   // ... we do NOT want to cover up the prior device
@@ -1000,10 +1025,22 @@ function createDevice(deviceId, user) {
     throw new Error(`***ERROR*** createDevice() cannot create duplicate device with key: ${deviceId}`);
   }
 
+  // convert userAgent to OS/browser
+  const uaParser = new UAParser(userAgent);
+  const uaResult = uaParser.getResult();
+  const os      = uaResult.os.name      + '-' + uaResult.os.version;
+  const browser = uaResult.browser.name + '-' + uaResult.browser.version;
+
   // create our new device
   const device = {
-    deviceId,   // primary key
-    user};
+    deviceId,       // primary key
+    user,
+    // ... following convenience (consolidation here is possible because we guarantee all sockets of a devices is from the SAME browser instance)
+    clientAccessIP,
+//  userAgent, ... too cryptic
+    os,
+    browser,
+  };
 
   // catalog our new device
   devices.set(deviceId, device);
@@ -1333,7 +1370,7 @@ export async function preAuthenticate(socket) {
 
       // create our new device (containing our newly created user)
       try {
-        device = createDevice(deviceId, user);
+        device = createDevice(deviceId, user, clientAccessIP, socket.data.userAgent);
       }
       catch(e) { // ... ERROR: we attempted to create a duplicate device key
         // Restart our entire preAuthenticate() process to resolve this race condition
@@ -1376,7 +1413,7 @@ export async function preAuthenticate(socket) {
     // NOTE: this client/user will ALWAYS be in a device of one TILL they refresh (disconnecting/reconnecting their socket)
     deviceId     = 'SOCKET-FROM-ERROR-' + socket.id; // ... use socket.id (very temporary ... it's all we have)
     user         = createUser(); // ... defaults to: unregistered guest user
-    device       = createDevice(deviceId, user);
+    device       = createDevice(deviceId, user, clientAccessIP, socket.data.userAgent);
 
     // notify user of problem
     if (e.message === 'STOLEN IDENTITY DETECTED') {
