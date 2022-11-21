@@ -1411,7 +1411,8 @@ export async function preAuthenticate(socket) {
 
     // start from scratch and use content that will create temporary device/user that is an unregistered guest user
     // NOTE: this client/user will ALWAYS be in a device of one TILL they refresh (disconnecting/reconnecting their socket)
-    deviceId     = 'SOCKET-FROM-ERROR-' + socket.id; // ... use socket.id (very temporary ... it's all we have)
+    const prefix = e.message === 'STOLEN IDENTITY DETECTED' ? 'SOCKET-FROM-STOLEN-IDENTITY-' : 'SOCKET-FROM-ERROR-';
+    deviceId     = prefix + socket.id; // ... use socket.id (very temporary ... it's all we have)
     user         = createUser(); // ... defaults to: unregistered guest user
     device       = createDevice(deviceId, user, clientAccessIP, socket.data.userAgent);
 
