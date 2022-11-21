@@ -1,8 +1,5 @@
 # Auth
 
-**AI:** ?? DO NOT publish anything here that would give too much
-insight to a hacker.
-
 This section describes the internals of **visualize-it**'s
 authentication and authorization.
 
@@ -31,6 +28,8 @@ Sign-In Authentication is is accomplished exclusively through a valid
 email.  No password is required.  The email account must be verified
 by supplying a short-lived verification code sent to the email account.
 This confirms the user is the owner of the email.
+
+**AI:** ?? The remainder of this document provides too much insight to a hacker (remove it from public consumption)
 
 Once a verified account is established, an encrypted token is retained
 on the device (in browser localStorage), that allows the user
@@ -77,7 +76,7 @@ that are maintained by our server:
       from the same device will have the same enablement.
 
       In reality, the Device obj is a very thin layer over the User
-      obj _(so as to not polute device keys into the User obj)_.
+      obj _(so as to not pollute device keys into the User obj)_.
 
     - **User obj**: Represents the user with both profile and
       enablement information.
@@ -140,17 +139,17 @@ that are maintained by our server:
       Device(User)/Socket(window)
 
       ```
-      Device (user) --1:M--< Socket (browser windows) with back-ref socket.data.deviceIdFull
+      Device (user) --1:M--< Socket (browser windows) with back-ref socket.data.deviceId
       ```
 
       This relationship is maintained through two aspects:
-      * each socket contains a `deviceIdFull` that references the device/user
+      * each socket contains a `deviceId` that references the device/user
         ```
-        socket.data.deviceIdFull
+        socket.data.deviceId
         ```
       * the device maintains a collection of sockets using a socket.io room
         ```
-        ROOM NAME: device-{deviceIdFull}
+        ROOM NAME: device-{deviceId}
         ```
         - this has the advantage of dynamically auto syncing (by
           socket.io) when sockets are disconnected.
@@ -160,9 +159,6 @@ that are maintained by our server:
 1. To supplement security considerations and account theft,
    **visualize-it**'s auto-authentication process supplements deviceId
    with a verification of the client's IP address.
-
-   This is where deviceIdFull comes into play:
-   `deviceIdFull = deviceId + clientAccessIP`
 
    The authentication process persistently retains all the clientIP
    addresses that a user authenticates on.  Only those IP addresses
@@ -203,200 +199,165 @@ different locations.
 
 ![Auth Structure Example](authStructExample.png)
 
+From the diagram above, you can see that it is possible for the same
+deviceId to alternate clientAccessIP addresses.  A simple example of
+this is when a laptop moves locations, resulting in different network
+access points.
 
-## Malicious Identity Detection
+That being said, this should NEVER exist concurrently.  In other words
+we should never see different browser instances with the same
+deviceId.  This indicates some malicious activity _(for example, the
+localStorage of one user's machine has been accessed and copied to
+another machine)_.
 
-Overall, the risk from Malicious Identity theft is thought to be
-minimal, as it would require physical access to your computer's
-localStorage.  This assumes of course that all
-[XSS](https://en.wikipedia.org/wiki/Cross-site_scripting) doors have
-been shut.  Even should these resources be nefariously accessed, there
-are safegaurds in place that minimize it's usefulness.
+## Malicious Activity
 
-1. ??$$ From the diagram above, you can see that it is possible for the
-   same deviceId to alternate clientAccessIP addresses.  A simple example
-   of this is when laptop moves locations, resulting in different network
-   access points.
-   
-   That being said, this should NEVER exist concurrently.  In other
-   words we should never see multiple active device objects with the
-   same deviceId.  This indicates some malicious activity.  For
-   example, the localStorage of one user's machine has been accessed
-   and copied to another machine.
-   
-   The system will actively check for this scenerio, and mark it in
-   such a way that requires the user to re-authenticate.
-   
-   - ??$$ I think this IS the PANIC button AUTOMATED
-   - ??$$ HOW
-   - ??$$ WHERE (WHAT CODE)
-     * I think it is in preAuthenticate()
-       JUST before it starts to create a new Device
-       >>> actually it could be in the createDevice() which is only invoked in preAuthenticate()
-           ... just before it catalogs the device
-               ALSO enhance createDevice() to setup association to socket <<< may be tricky for existing devices ... possibly look it up and use existing
-           ... the check could do a search and insure offending devices do NOT exist
-               AND do the initiative
-               ALSO returns null (when issue was found)
-               INVOKER would need to interpret undefined
+Overall, the risk of visualize-it account impersonation is minimal,
+due to both the minuscule opportunity for the actual theft, and the
+safeguards in place to minimize the usefulness of stolen items
+discussed here.
 
-   - The varient of this scenerio is when the malicious activity
-     occurs at seperate times from when the real user is active.
+Any attempt to steal a user's account identity, involves the theft of
+two localStorage items:
 
-     BAD: Currently, this cannot be detected.  ??$$ can we address this
-     
+- deviceId: a unique identifier of a browser instance, maintained
+  by our client app (a randomly generated ID).
 
-2. ??$$ A variant of the above malicious activity can manifest itself
-   if this occurs within the same network (i.e. the same
-   clientAccessIP address).
+- token: an encoded rendering of the sign-in credentials (email, and
+  guestName)
 
-   This manifests itself with the socket connections of the malicious
-   user being grouped in to the same Device object instance as the
-   real user.
+Malicious access to localStorage can occur in two separate ways:
 
-   This can manifest itself in two ways:
+1. Physical access to your computer (through the browser devTools).
+   While this threat is minimal, the user must protect access to their
+   computer.
 
-   - Concurrently: When both the real user and the malitious user is
-     active at the same time.
+2. Vulnerabilities in application logic allowing
+   [XSS](https://en.wikipedia.org/wiki/Cross-site_scripting).  This
+   threat is also minimal, as there are no XSS vulnerabilities known
+   to be present in visualize-it.
 
-     * ??$$ Assuming that the IDE is being used in this scenerio
-       (where presumably the most damage can occur - IS THIS TRUE),
-       the system will issue warnings to all parties that the IDE
-       should NOT be concurrently active in multiple sessions (because
-       no synchronization occurs).  This is an indicator to the real
-       user that they should activate the PANIC button (??$$ detail
-       what this does).
+### Pre Authentication
 
-     * ??$$ There is a minor indication that this has occured - if one
-       user signs-out, all users of the device will be signed-out.
+In visualize-it, authentication is closely associated to the
+websocket.  Because a websocket is established at the very beginning
+of a visualize-it app instance, it goes through a pre-authentication
+process to establish the credentials of the user who is running the
+app.  This could result in either an authorized signed-in user, or a
+guest user that is not yet signed-in.
 
-       While this is certainly a crucial indicator to the real user,
-       it is doubtful that the malicious user would initiate a
-       sign-out.
+There are two cases where visualize-it will automatically grant access
+to an authorized signed-in user at application start-up time:
 
-       ?? NOT TRUE IF WE IMPLEMENT BETTER SIGN-OUT: Even when the real user signs-out, it doesn't do all much to
-       the malicious user.  They are merely signed-out - but their
-       localStorage credentials are NOT updated.  Currently
-       localStorage is only updated on the client socket that
-       initiated the sign-out request (not the malicious user).  EVEN
-       if this were addressed, the malicious user could simply
-       manually re-instate the localStorage.
+1. **AUTO-ACCESS-1**: When the user launches an additional visualize-it app
+   instance (i.e. an additional browser window running the
+   visualize-it app).  Because they are already running the app in a
+   separate browser window, we simply accept those credentials.  This
+   makes sense because visualize-it auto-syncs the user credentials of
+   all browser windows.
 
-   - Independently: When the malicious user is active at seperate
-     times of the real user.
+   **ACCESS**: deviceId (localStorage)
 
-     BAD: Currently, this is NOT detectable. ??$$ can we fix this?
+   This is detected when the same localStorage deviceId is in use.
 
-   Overall, this is thought to be minimal risk, as the attacker
-   represents an "inside" job ... thoughts?
+   **RISK**: _NO RISK_
 
-?? Overall, a prevention technique to minimize malicious activity (if
-that is a problem for a user) is to sign-out frequently.  This process
-employs safegaurds that internally reset any saved credentials, making
-them invalid. ?? WHEN sign-out does the proper things (sign-out ALL
-users of this account, spanning multiple devices, and clear accepted
-validations from DB, and reset deviceId)
+   There is NO risk in this scenario BECAUSE an innovative test is
+   performed that confirms the same browser instance is in-use.  
 
+   Even if a hacker has stolen the localStorage deviceId, they will
+   fail this "browser instance" test, and will be isolated as a
+   "guest" user.
 
-??$$ Even if/when all these vulnaribilities are plugged, what prevents
-the malitious user from simply going back to the well and re-stealing
-the current active localStorage items.  It kinda depends on if this theft
-was done remotely (via XSS) or if it was from access to the physical machine?
+   In addition, the account involved will be emailed a "Malicious
+   Activity Detected" notification with instructions on how to "regain
+   control".
 
-### Proactive Prevention of Malicious Activity
+   Please note that in this scenario it is not possible to distinguish
+   which session is the hacker and which is the real user.  As it turns
+   out, that distinction is not necessary, because the account email is
+   used to give the notification.
 
-??$$ CUR POINT
+2. **AUTO-ACCESS-2**: When the user launches the first visualize-it app
+   instance.  If they have previously signed-in on the given
+   deviceId/clientAccessIP, they will be granted access as that user.
 
-??$$ rather than a Panic Button (Force Re-Authentication)
-     I think I can just do necessary things in an explicit sign-out process
-     1. force ALL active users of that email to sign-out
-        ... done via active socket connections
-        ... EVEN spans multiple Devices (for good measure)
-     2. for the initiatator, reset the deviceID
-        ... this will thwart any thief, as their copied deviceId is no longer valid
-     3. clear the acceptable DB entries for that email
-        ... this will thwart any thief, as their copied deviceId is no longer valid
-     >> this way, if we need to communicate a potential issue (to the user), we can tell them to simply sign-out and back in again
-        ... WORDING: by signing-out you reset some internals that will help to keep your account secure
-     >> ALSO, may want to FORCE logout on some timeout of token
+   **ACCESS**: deviceId & token (both localStorage)
 
-- Maintain a persistent DB to:
-  * ?? retain acceptable (i.e. authenticated) email/deviceId/clientAccessIP pairs
-  * ?? mark tainted deviceIds <<< PROB NOT NEEDED ... if we simply CLEAR table above
+   This is driven by the localStorage token variable that contains a
+   verified account (email).
+
+   **RISK**: _MINIMAL_
+
+   If a hacker steals BOTH the deviceId/token
+   -AND- the hacker is on a previously authenticated clientAccessIP (either an insider in a company, or an access point previously used by real user)
+   -THEN- they ARE IN (without any other checks)
+
+   The risk is minimal because the hacker is typically NOT going to be
+   on the same internet access point of the real user.
 
 
-- NOTES:
-  * CURRENTLY deviceId is only retrieved in preAuthenticate() for the sole purpose of cataloging the Device object
-    WE ALWAYS catalog the Device object in-memory ... at minimum with a Guest user
-  * ALSO we only can get to the sign-in screen FOR guests
-  * THIS IS OK
+### Detection
 
-- PreAuthenticate:
-  * get accetable deviceId that is NOT on the tainted list                         <<< a MOD to our current process
-    ... will itterativally ask for deviceId to be re-set (on the client)
-  * get token (email) ... as normal
-  * if email/deviceId+clientAccessIP IS NOT in acceptable DB: NO PRE-AUTHENTICATE  <<< a MOD to our current process
-    ... this WAS: isEmailAuthenticatedOnIP(emailFromToken, clientAccessIP)
-    ... NOW is:   isEmailPreAuthenticatedOnDB(email, deviceIdFull);
-  * otherwise: WE ARE IN
+Malicious account impersonation can only be systematically detected
+when the hacker is accessing the system at the same time the real user
+is active.  This is called **Concurrent Access**.  In other words, the
+real user and the hacker are active at the same time.  This is
+manifest through **AUTO-ACCESS-1** (see above), when an email is sent
+to the account holder.
 
-- SignIn:
-  * this process is unchanged (I THINK)
-    ... it continues to authenticate a new user email (as always)
-    ... the Device/User pre-exsits: we will morph it into a signed-in user
-
-> CALL IT: Force Re-Authentication (NOT Panic)
-- ?? Panic Button Process: <<< FORCE re-authentication for this email account (on any location and forced new deviceId)
-  * PARAMS: 
-    - logically a socket, which in turn identifies
-      * email of user  <<< KEY
-      * deviceId       <<< KEY
-      * clientAccessIP ... UNUSED (I think)
-  * PROCESS:
-    - mark deviceId as tainted
-      * which causes it to be regenerated automatically
-      * and invalidates any stored token (because will NOT match DB authenticated pairs)
-        ... causing them to have to re-authenticate (i.e. re-validate their email)
-    - optionally clear the PreAuthenticatedOnDB entries for this user (email)
-      ... could leave them but they are auto tainted
-    - auto sign-out ANY user on ANY device with this email account
-      >>> OR is it with this deviceId (I think this is appropriate)
-          - UNSURE: if so, we may want to insure the deviceId is NOT tainted in the sign-in process
-                    ... so as to do what?
-      ... this merely changes all in-memory user stores for this email (both client/server)
-      ... EVEN SO, they MUST sign-in (and email verify) to get it back
-      ... IF they simply REFRESH browser (going through preAuthenticate), their deviceId has been tainted, so it will be re-set -and- they start out as Guest
-          ?? I-THINK-THIS-IS-SOLVED: somehow must force MORE than just a sign-in BECAUSE we currently don't do anything with deviceId/clientAccessIP in sign-in process
+The variant of **Concurrent Access** is when the malicious activity
+occurs at separate times from when the real user is active.  This is
+called **Independent Access**.  Malicious account impersonation **can
+not be detected** when the hacker is active at separate times from the
+real user.  That being said, this threat is minimal, because to be
+affective, it requires all the conditions listed in **AUTO-ACCESS-2**
+(see above).
 
 
-## Work In Progress
+### Regaining Control
 
-1. **CONSIDER** - If a malicious user get's access to your localStorage
-   and copies 2 items (deviceId/token) they can steal your identity.
+If a malicious account impersonation occurs, the real user can regain
+control (ousting the hacker) by simply signing-out of their account.
 
-   **FIX** (at least a step in the right direction): supplement with
-     clientIP.
-   
-   - Risk is minimal, unless user has access to your computer. <<< HOWEVER is there is a XSS hole I don't know about?
-     * Public WiFi is not an issue.
-     * Shared public computer is _(they MUST sign-off when done)_.
+This is basically the instructions that are emailed to the account
+when malicious activity is detected.
 
-   - Need a more sophisticated process with private/public key or
-     something else (like clientIP).
+In detail this is what is happening
 
-   - NO (too intrusive): A **Partial FIX** would be to require email verification on each sign-in.
-     * BIG hassle to the user
-     * We could do this only on first access within the device.
+1. sign-in
 
-   - ?? YES: A **Better FIX** would be to mix-in the client IP address _(in
-     addition to the deviceId)).  This would greatly minimize the
-     problem _(see next point)_.
+   If you are not currently signed-in, do so now - this verifies that
+   you are the owner of this email account.
 
-   - HMMM: Also could periodically check if same email is being used across
-     devices.  This may be suspicious, and mark this email (in our DB)
-     to require re-validation.  THIS NO NO GOOD ... once re-validated,
-     then the hacker is IN again ... hmmm.
+2. sign-out immediately
 
+   This forces any active hacker (of this account email) to be
+   signed-out - in such a way that they can no longer regain access, in
+   their current state.
+
+   It clears the persisted validated access points (clientAccessIP).
+
+   It resets the real user's browser deviceId.  The hacker will no
+   longer be auto-authenticated (using their current settings).
+
+3. Everything is now back to normal (and has been re-secured).
+   Go ahead and sign-in as you normally would.
+
+   For the hacker to regain access, they would need to repeat their prior steps 
+
+   1. re-steal both the deviceId/token
+
+      This theft is thought to rare, as it requires physical access to
+      the computer's localStorage (assuming all XSS doors have been
+      shut)
+
+      Remember, the deviceId changes frequently (on sign-out).
+
+   2. access the system when the real user is NOT actively signed-in
+
+
+## Misc Code Snippets
 
 1. how to access clientIP
 

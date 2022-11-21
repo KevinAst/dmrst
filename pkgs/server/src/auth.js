@@ -19,8 +19,8 @@
  *        > following convenience (consolidation here is possible because we guarantee all sockets of a devices is from the SAME browser instance)
  *        - clientAccessIP: the internet access point for this client (think of as router/WiFi IP)
  *        ~ userAgent:      identifies the specific browser in use <<< NOT INCLUDED (too cryptic)
- *        - os:             the OS-version
- *        - browser:        the browser-version
+ *        - os:             the OS-version (via userAgent)
+ *        - browser:        the browser-version (via userAgent)
  *
  *   - bi-directional relationship between Device(User)/Socket(window)
  *
