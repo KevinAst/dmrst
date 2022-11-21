@@ -16,6 +16,8 @@ publishing and promoting packages that you build in the cloud.
 
 ## Authentication & Authorization
 
+[Authentication and Authorization](https://medium.com/geekculture/authentication-and-authorization-a5a2eafdde16)
+
 [Authentication vs Authorization - What's the Difference?](https://www.freecodecamp.org/news/whats-the-difference-between-authentication-and-authorisation/)
 
 - **Authentication** confirms that users are who they say they are.
@@ -26,8 +28,10 @@ publishing and promoting packages that you build in the cloud.
 
 Sign-In Authentication is is accomplished exclusively through a valid
 email.  No password is required.  The email account must be verified
-by supplying a short-lived verification code sent to the email account.
-This confirms the user is the owner of the email.
+by supplying a short-lived verification code sent to the email
+account.  This confirms the user is the owner of the email. This
+process is sometimes refereed to as "Dynamic Password" or OTP (One
+Time PIN).
 
 **AI:** ?? The remainder of this document provides too much insight to a hacker (remove it from public consumption)
 
