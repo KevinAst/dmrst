@@ -84,7 +84,7 @@
   <!-- our crude header -->
   <i on:click={() => dispComp = SystemDisplay} class="sys">
     <b>visualize-it</b>
-    (ver 0.3)
+    (ver 0.4)
     <b>System-Runner</b>
   </i>
   &nbsp;&nbsp;&nbsp;
