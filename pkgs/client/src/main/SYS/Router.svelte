@@ -82,20 +82,16 @@
 
 <div>
   <!-- our crude header -->
-  <i on:click={() => dispComp = SystemDisplay} class="sys">
+  <button on:click={() => dispComp = SystemDisplay} class="sys">
     <b>visualize-it</b>
     (ver 0.4)
-    <b>System-Runner</b>
-  </i>
-  &nbsp;&nbsp;&nbsp;
-  &nbsp;&nbsp;&nbsp;
-  &nbsp;&nbsp;&nbsp;
+    <b>Runner</b>
+  </button>
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 
   <!-- UserProfile icon -->
-  &nbsp;&nbsp;&nbsp;
-  &nbsp;&nbsp;&nbsp;
-  &nbsp;&nbsp;&nbsp;
-  &nbsp;&nbsp;&nbsp;
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
   <UserProfileIcon {handleSignIn} {handleSignOut} {handleRegisterGuest}/>
 
   <!-- alert message -->

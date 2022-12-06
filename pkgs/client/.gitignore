@@ -1,8 +1,8 @@
 # this is handled by our root .gitignore 
 # /node_modules/
 
-# machine generated output of our build
-/public/*/build/
+# machine generated output of our PRODUCTION build
+/dist/
 
 # git only retains the common "core" source from it's master (in pkgs/server) ... NOT this symbolic link
 /src/core/

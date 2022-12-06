@@ -45,6 +45,12 @@ export default function setupSocketConnection(clientType) { // 'ide' or 'sys'
     }
   });
 
+  // pro-actively monitor socket.io connection errors (such as cors configuration problem)
+  socket.io.on('error', (err) => { // UNSURE WHICH TO USE ... this works too: socket.on('connect_error', (err) => {
+    log.f(`Socket connection ERROR: `, {err});
+    alert.display(`A problem was encountered in making our app's socket connection (see logs for more info)`);
+  });
+
   // determine when connection is made, by monitoring the 'connect' event
   // ... test with 
   //     1. server NOT running:    NEVER receive 'connect' event 

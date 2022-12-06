@@ -38,70 +38,70 @@ This section provides a summary of the available **NPM Scripts** for
 **visualize-it**'s `client` sub-project _(`pkgs/client/`)_
 ... _organized by task_:
 
+**PLEASE NOTE**: These **NPM Scripts** may be run in any directory
+(i.e. they are NOT restricted to be run in the client root).
+
 **PLEASE NOTE**: These **NPM Scripts** are <mark>NOT</mark> currently
 written in an "OS Neutral" way _(this task is not currently on my
 radar)_.  They are known to run in a windows+cygwin env.
 
 
+
 ```
 DEVELOPMENT
 ===========
-ide:devServe ..... start the dev server for the "ide" SPA (watching for code changes)
-ide:devPreview ... launch a browser with the URL for the dev server "ide" SPA
+ide:devServe ..... start the "ide" dev server SPA
+                   - launches browser session
+                   - republishes code changes (vite hot reload)
 
-sys:devServe ..... start the dev server for the "sys" SPA (watching for code changes)
-sys:devPreview ... launch a browser with the URL for the dev server "sys" SPA
+sys:devServe ..... start the "sys" dev server SPA
+                   - launches browser session
+                   - republishes code changes (vite hot reload)
 
-                   NOTE: You can simultaneously run both SPA dev servers (ide/sys).
+                   NOTE: You can simultaneously run both ide/sys SPA dev servers.
                          Code changes will be dynamically refreshed in both browsers.
-                         This is made possible because each SPA dev server (ide/sys)
-                         are using different ports.
-
+                         This is made possible because each dev server uses
+                         different ports.
 
 PRODUCTION BUILD
 ================
-app:prodBuild .... prod build for BOTH "ide/sys" SPAs (output: public/)
-ide:prodBuild .... prod build for the "ide" SPA (output: public/ide/)
-sys:prodBuild .... prod build for the "sys" SPA (output: public/ide/)
+ide:prodBuild .... prod build the "ide" SPA (output: dist/ide/)
+sys:prodBuild .... prod build the "sys" SPA (output: dist/sys/)
+app:prodBuild .... prod build BOTH "ide/sys" SPAs (output: dist/)
+
+ide:prodPreview .. start web server hosting the prod "ide" SPA (and launch browser)
+sys:prodPreview .. start web server hosting the prod "sys" SPA (and launch browser)
+app:prodPreview .. start web server hosting the prod "ide/sys/" SPA (and launch browser)
 
                    NOTE: NO code monitoring is done for production client builds.
 
                    NOTE: To preview production client builds (in your browser), 
-                         there are two options:
+                         there are three options:
 
-                         1. Serve them from this "client" project:
+                         1. Serve EACH from this "client" project:
+                            # IDE
+                            $ npm run ide:prodBuild
+                            $ npm run ide:prodPreview # launches: http://localhost:8095/
+
+                            # SYS
+                            $ npm run sys:prodBuild
+                            $ npm run sys:prodPreview # launches: http://localhost:8096/
+
+                         2. Serve BOTH from this "client" project:
                             $ npm run app:prodBuild
-                            $ npm start
+                            $ npm run app:prodPreview
                             - browse:
                               ... http://localhost:8080/ide/
                               ... http://localhost:8080/sys/
 
-                         2. Stage/Review the client build in the server project:
+                         3. Stage/Review the client build in the server project:
                             $ cd {projRoot}/pkgs/server
                             $ npm run hero:build    AI: insure this is the way I left it in the server project
                             $ npm run app:devServe  AI: insure this is the way I left it in the server project
                             - browse:
                               ... http://localhost:5000/ide/
                               ... http://localhost:5000/sys/
-
-
-MISC
-====
-start ............ start a webserver that serves content of the public/ dir
-                   - USED INTERNALLY by "devServer" scripts
-                     * DO NOT CHANGE the "start" name!
-                     * when used in this context:
-                       - the port is overridden by the "devServer" scripts
-                       - code monitoring is done (browser is refreshed on code changes)
-                         ... the dev bundle will inject client-code to "liveload" 
-                             the browser on monitored changes to the code
-                   - CAN BE USED, manually to test results of PROD builds
-                     * when used in this context:
-                       - the port defaults to 8080
-                       - NO code monitoring is done
-                       - for details, see NOTE above (for "preview prod builds")
 ```
-
 
 
 
@@ -322,14 +322,16 @@ The `client` sub-project _(`pkgs/client/`)_ actually contains **two**
    **sys** app is much smaller than the **ide** app _(minimizing
    resources needed for production usage)_.
 
+   AI: rename **sys** to **run** (impacts code too)
+
 In essence the **sys** app is a subset of the **ide** app.  The heart
 of what **sys** does is also available in **ide**.  Ultimately this
 functionality is shared between the two apps.  In other words
 **<mark>they share the same code base</mark>**.  The primary
 distinction between the two apps, is they have different starting
-points (i.e. the `main.js`).  Because our bundler ([rollup.js])
+points (i.e. the `main.js`).  Because our build tool ([vite])
 walks the dependencies _(imports)_ of two different mainlines, the
-resulting size of the `bundle.js` is significantly different.
+resulting size of our production bundles is significantly different.
 
 >  **Bottom Line** The way this setup is implemented, you can
 >  simultaneously run both SPA dev servers **(ide/sys)**.  Code
@@ -337,12 +339,63 @@ resulting size of the `bundle.js` is significantly different.
 >  made possible because each SPA dev server **(ide/sys)** are using
 >  different ports.
 
-Here are some resources/articles used as references in this setup:
+This task was accomplished by detailed analysis of:
 
-- [How to Set Up a Svelte App with Rollup](https://typeofnan.dev/how-to-set-up-a-svelte-app-with-rollup/)
-- [How to change the default port of a Svelte.js app](https://surajsharma.net/blog/change-port-in-svelte)
-- the [sveltejs/template] used in `npx degit sveltejs/template svelte-app`
-- the [rollup.js] documentation
+- [Vite Docs]
+- [Svelte Getting Started]
+
+**Basic Starting Point**
+
+The following steps setup the standard vite/svelte client per the
+[Svelte Getting Started] docs:
+
+```shell
+
+$ cd c:/dev/dmrst/pkgs
+
+# alias to "npm init" ... per svelte docs:
+$ npm create vite@latest client -- --template svelte
+  npm WARN exec The following package was not found and will be installed: create-vite@latest
+  Scaffolding project in C:\TEMP\SvelteVite\pkgs\client...
+
+$ cd client
+$ find . -ls
+    .gitignore         ... ton of stuff (main focus: node_modules -and- dist)
+    .vscode/           <<< DELETE (NOT USED)
+      extensions.json  ... used in vs-code (unsure what it is doing)
+    dist/              ... machine generated prod build (default location) - BUILD MODS NEEDED FOR "2 SPAS"
+     ...
+    index.html         ... SPA Entry Point (vite starts with this) - MOVE/DUP FOR "2 SPAS"
+    jsconfig.json      ... DELETE (a VS Code configuration of this project) if we use something, needs to be at project root
+    package.json       ... standard package with scripts and dependencies
+    public/            ... resources are auto placed in the PROD BUILD - MOVE/DUP FOR "2 SPAS"
+      vite.svg
+    README.md          ... interesting notes relative to vite and HMR
+    src/               ... svelte template starting point (sample app)
+      app.css          ... global css for entire app - MOVE/DUP FOR "2 SPAS"
+      App.svelte       ... app root component
+      assets/          ... sample usage of including svg file in code (NOT USED)
+        svelte.svg
+      lib/             ... sample internal lib
+        Counter.svelte
+      main.js          ... mainline entry code
+      vite-env.d.ts
+    vite.config.js     ... the default vite build file - MOVE/DUP FOR "2 SPAS"
+
+# install dependencies
+$ npm install
+  added 24 packages, and audited 25 packages in 6s
+  found 0 vulnerabilities
+
+# run dev server (with hot reload)
+$ npm run dev
+  - BROWSE: http://localhost:5173/
+  - bump counter up by clicking on button (up to 4)
+  - change code
+  - IT IS SUPER FAST with hot-reload!
+```
+
+**Retrofit: Two SPAs in One**
 
 The following steps were used in modifying the default svelte template
 to generate two separate [SPA]s:
@@ -352,71 +405,90 @@ to generate two separate [SPA]s:
    imports to the specific needs of each app, ... _in essence pruning
    unneeded modules_.
 
-   - `pkgs/client/src/mainIDE.js`
-   - `pkgs/client/src/mainSys.js`
+   ```
+   pkgs/client/
+     src/
+       main/
+         IDE/              <<< our IDE SPA App entry point
+           App.svelte      ... app root component
+           global.css      ... global css for entire app - based on svelte template: client/src/app.css (MOVED here)
+           index.html      ... root entry html - based on svelte template: client/index.html (MOVED here)
+           main.js         ... mainline entry code - based on svelte template: client/src/index.html (MOVED here)
+           public/         ... SPA web resources - based on svelte template: client/public (MOVED here)
+             favicon.png
+           Router.svelte   ... our IDE top-level router component
+           vite.config.js  ... our vite build file - based on svelte template: client/vite.config.js (MOVED HERE)
+       
+         SYS/              <<< our SYS SPA App entry point
+           App.svelte          DITTO ABOVE
+           global.css
+           index.html
+           main.js
+           public/
+             favicon.png
+           Router.svelte
+           vite.config.js
+   ```
 
-
-2. We restructure the `public/` directory _(output of the build)_ as
+2. Our build mods restructure the `dist/` directory _(output of the build)_ as
    follows, to accommodate two [SPA]s.  In essence two sub-directories
-   are injected (`ide/` and `sys`):
+   are injected (`ide/` and `sys/`):
 
    ```
-   public/
-     ide/              ... the "ide" SPA
-       build/              ... build output
-         bundle.css
-         bundle.js
-         bundle.js.map
-       favicon.png
-       global.css
-       index.html          ... tailored as needed (title: IDE, relative href to allow sub-dir deployment)
-     sys/              ... the "sys" SPA
-       build/              ... build output
-         bundle.css
-         bundle.js
-         bundle.js.map
-       favicon.png
-       global.css
-       index.html          ... tailored as needed (title: SYS, relative href to allow sub-dir deployment)
+   pkgs/client/
+     dist/
+       ide/              ... the "ide" SPA (all build output)
+         assets/
+           index.0f0b1ddb.css
+           index.c27ed718.js
+         favicon.png
+         index.html
+
+       sys/              ... the "sys" SPA (all build output)
+         assets/
+           index.5a34cc9f.js
+           index.e1e605fe.css
+         favicon.png
+         index.html
    ```
 
-   We also adjust `.gitignore` appropriately (ignoring the two `build/`
-   sub-directories).
+   We also adjust `.gitignore` appropriately (ignoring the root `dist/`
+   sub-directory).
 
    ```
-   /public/*/build/
+   /dist/
    ```
 
-3. We morph the standard `rollup.config.js` file into two separate files:
+3. We enhance the standard vite build scripts to accommodate this new structure.
 
-   - `rollup.config.ide.js`
-   - `rollup.config.sys.js`
+   In summary. the following items are used in the various vite commands:
 
-   Updating the following reference within each config _(ex shows `ide`)_:
+   - the target src root is provided (ex: `vite src/main/IDE/`)
+   - for PROD builds, the output directory is provided (ex: `--outDir ../../../dist/ide`)
+   - for PROD builds, the base directive is used to enable relative resource references in our html (ex: `--base ./`)
+     * this allows our production server to host multiple SPAs at any location in it's public directory structure.
+   - various ports are specified, so as to NOT conflict with multiple SPAs (ex: `--port 8085`)
+     * these DEV ports are also maintained in our server for CORS policy config (see [`pkgs/server/src/sockets.js`](../server/src/sockets.js))
+   - the `--strictPort` is specified, so as to error out if the port is already in use
+     * the default behavior is to bump up the port, which can be problematic for CORS config (on the server)
+   - the open directive is used to consistently reference `localhost` vs. 127.0.0.1` (ex: `--open http://localhost:8085`)
+     * this makes it more convenient in our server CORS config
+     * also in the case of `vite preview` command it now launches the a browser (by default it only launches the server and NOT the browser)
 
-   ```
-   ...
-     input: 'src/mainIDE.js',
-     output: {
-        ...
-        file: 'public/build/ide/bundle.js'
-     },
-   ... 
-   ```
-
-   And referencing these config files from the npm build scripts (in
-   `package.json`):
+   **Build Scripts**:
 
    ```
-   "ide:prodBuild":  "rollup -c rollup.config.ide.js",
-   "ide:devServe":  "set PORT=8085 && rollup -c rollup.config.ide.js -w",
-   "ide:devPreview": "start http://localhost:8085/ide/",
+   "ide:devServe":    "vite src/main/IDE/                                             --port 8085 --strictPort --open http://localhost:8085",
+   "ide:prodBuild":   "rimraf dist/ide && vite build src/main/IDE/ --outDir ../../../dist/ide --base ./",
+   "ide:prodPreview": "vite preview             --outDir dist/ide                     --port 8095 --strictPort --open http://localhost:8095",
 
-   "sys:prodBuild": "rollup -c rollup.config.sys.js",
-   "sys:devServe":  "set PORT=8086 && rollup -c rollup.config.sys.js -w",
-   "sys:devPreview": "start http://localhost:8086/sys/",
+   "sys:devServe":    "vite src/main/SYS/                                             --port 8086 --strictPort --open http://localhost:8086",
+   "sys:prodBuild":   "rimraf dist/sys && vite build src/main/SYS/ --outDir ../../../dist/sys --base ./",
+   "sys:prodPreview": "vite preview             --outDir dist/sys                     --port 8096 --strictPort --open http://localhost:8096",
 
-   "start": "sirv public --no-clear"
+   "app:prodBuild":       "npm run ide:prodBuild && npm run sys:prodBuild",
+   "app:prodPreview:REM": "start the server at dist/ (can test BOTH ide -and- sys)",
+   "app:prodPreview":     "vite preview         --outDir dist                         --port 8080 --strictPort --open http://localhost:8080/ide/"
    ```
 
 
@@ -1323,9 +1395,10 @@ This section documents the steps to setup a new **feature branch**
 
 [IDE]:                            https://en.wikipedia.org/wiki/Integrated_development_environment
 [SPA]:                            https://en.wikipedia.org/wiki/Single-page_application
-[rollup.js]:                      https://rollupjs.org/guide/en/
+[vite]:                           https://vitejs.dev/
+[Vite Docs]:                      https://vitejs.dev/guide/
 [Svelte]:                         https://svelte.dev/
-[sveltejs/template]:              https://github.com/sveltejs/template
+[Svelte Getting Started]:         https://svelte.dev/docs#getting-started
 
 <!--- ?? following from template ... may NOT be used --->
 [js.org]:                         https://js.org/

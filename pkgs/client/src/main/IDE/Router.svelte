@@ -83,25 +83,25 @@
   <!-- IDE link  -->
   &nbsp;&nbsp;&nbsp;
   {#if dispComp === IDE}
-    <b class="active">IDE</b>
+    <button class="active">IDE</button>
   {:else}
-    <b class="link" on:click={() => dispComp = IDE}>IDE</b>
+    <button class="inactive" on:click={() => dispComp = IDE}>IDE</button>
   {/if}  
 
   <!-- System link  -->
   &nbsp;&nbsp;&nbsp;
   {#if dispComp === System}
-    <b class="active">System</b>
+    <button class="active">System</button>
   {:else}
-    <b class="link" on:click={() => dispComp = System}>System</b>
+    <button class="inactive" on:click={() => dispComp = System}>System</button>
   {/if}  
 
   <!-- Chat link -->
   &nbsp;&nbsp;&nbsp;
   {#if dispComp === Chat}
-  <b class="active">Chat</b>
+  <button class="active">Chat</button>
   {:else if $chat.isActive}
-  <b class="link" on:click={() => dispComp = Chat}>Chat</b>
+  <button class="inactivek" on:click={() => dispComp = Chat}>Chat</button>
   {:else}
   <!-- Chat ... don't even show it  -->
   {/if}  
@@ -109,9 +109,9 @@
   <!-- Admin link  -->
   &nbsp;&nbsp;&nbsp;
   {#if dispComp === Admin}
-    <b class="active">Admin</b>
+    <button class="active">Admin</button>
   {:else if $user.enablement.admin}
-    <b class="link" on:click={() => dispComp = Admin}>Admin</b>
+    <button class="inactive" on:click={() => dispComp = Admin}>Admin</button>
   {/if}  
 
   <!-- UserProfile icon -->
@@ -133,9 +133,10 @@
 <svelte:component this={dispComp}/>
 
 <style>
- .link {
-   cursor:          pointer;
-   text-decoration: underline;
+ .inactive {
+   color: black;
+   background-color: white;
+   padding: 2px 4px;
  }
  .active {
    color: white;

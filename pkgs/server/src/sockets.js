@@ -30,11 +30,21 @@ export function initializeSockets(httpServer) {
     //                 ... this is the reason we need this cors configuration!
     cors: {
       origin: [
-        'http://localhost:8085', // our IDE SPA ... http://localhost:8085/ide/
-        'http://localhost:8086', // our SYS SPA ... http://localhost:8086/sys/
-        'http://localhost:8080'  // both IDE/SYS SPA when using "npm start" manually (to test PROD builds)
-                                 //                  ... http://localhost:8080/ide/
-                                 //                  ... http://localhost:8080/sys/
+        'http://localhost:8085', // our DEV  IDE SPA ... http://localhost:8085
+        'http://localhost:8095', // our PROD IDE SPA ... http://localhost:8095
+
+        'http://localhost:8086', // our DEV  SYS SPA ... http://localhost:8086
+        'http://localhost:8096', // our PROD SYS SPA ... http://localhost:8096
+
+        'http://localhost:8080', // both PROD IDE/SYS SPAs ... testing PROD builds (using "npm run app:prodPreview")
+                                 //                        ... http://localhost:8080/ide/
+                                 //                        ... http://localhost:8080/sys/
+        // ditto ABOVE with IP address
+        'http://127.0.0.1:8085',
+        'http://127.0.0.1:8095',
+        'http://127.0.0.1:8086',
+        'http://127.0.0.1:8096',
+        'http://127.0.0.1:8080',
       ],
   //? methods: ['GET', 'POST'], TODO: review more options
   //? allowedHeaders: ['my-custom-header'],
