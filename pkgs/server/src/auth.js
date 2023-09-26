@@ -29,7 +29,7 @@
  *      * the relationship FROM Device TO Socket is maintained by a "room" (part of socket.io)
  *        - this means the dynamics of socket disconnects, is automatically maintained by socket.io
  *        - the sockets in the group represent the browser window of a given user
- *          * visualize-it automatically syncs user identity changes to all these windows
+ *          * vzual automatically syncs user identity changes to all these windows
  *          * this grouping has a similar scope to that of the browser localStorage
  *
  *   - socket.data: ... contains a number of useful items
@@ -499,7 +499,7 @@ function generateEmailVerificationCode(socket, email) {
   const verificationCode = randomNumberStr(100000, 999999);
   // log(`verificationCode: ${verificationCode}`); // NO NO: info is too sensitive
 
-  // expire verification code in 5 mins
+  // expire verification code in 5 mins AI: elsewhere I indicate 10 mins
   const timeout = 5 * 60 * 1000;
   const timeoutID = setTimeout(() => {
     clearSignInVerification(socket);
@@ -526,9 +526,9 @@ async function sendEmailVerificationCode(socket) {
   // AI: IMPORTANT: REMOVE THIS for production release
   //                ... for good measure
   //                ... even though it should NOT be active in prod (due to differences in env for prod deployment)
-  if (isDev && process.env.VERIFY_EASTER_EGG) {
-    return;
-  }
+//??  if (isDev && process.env.VERIFY_EASTER_EGG) {
+//?     return;
+//?   }
 
   // no-op when sign-in period has expired
   // ... technically, the client should NOT allow this (just for good measure)
@@ -540,14 +540,23 @@ async function sendEmailVerificationCode(socket) {
   // ... define the verification message to be sent
   const emailContent = {
     to:      socket.data.verification.email,
-    bcc:     'kevin@appliedsofttech.com', // AI: IMPORTANT: very temporary for now (monitor all sign-in activity IN the early days)
-    from:    'kevin@appliedsofttech.com', // AI: use the email address or domain you verified with SendGrid
-    subject: 'Verification Code from visualize-it',
-    text:    `You have requested to access a visualize-it account through this email address\n\n` +
-             `To complete this process, enter the code below in your visualize-it verification screen:\n\n ${socket.data.verification.code}\n\n` +
-             `This code will expire after 10 minutes.\n\n` +
-             `Didn't request this code from visualize-it?  Someone may be attempting to use your email address as an account identifier.\n\n` +
-             `This is a system generated email. Replies will not be read or forwarded for handling.`,
+    bcc:     'support@vzual.org', // AI: IMPORTANT: very temporary for now (monitor all sign-in activity IN the early days)
+    from:    'noreply@vzual.org', // AI: use the email address or domain you verified with SendGrid
+    subject: 'Verification Code from vzual',
+    html:    `<p>You have requested to access a vzual account through this email address</p>
+              <p>To complete this process, enter this code in your vzual verification screen: <b><mark>${socket.data.verification.code}</mark></b>
+              <i>(this code will expire after 10 minutes).</i>
+              <p>Didn't request this code from vzual?  Someone may be attempting to use your email address as an account identifier.</p>
+              <p>This is a system generated email. Replies will not be read or forwarded for handling.</p>
+              <p>
+                --<br/>
+                ==========================<br/>
+                Vzual Support (No Reply)<br/>
+                <a href="https://vzual.org/">https://vzual.org/</a><br/>
+                ==========================
+              </p>`
+              // NOTE: the <a> tag (above) is used to mask the gobbly gook security link added by SendGrid for links
+              //       AI: I suspect a better way to resolve this is through "Link Branding" SendGrid configuration
   };
   // ... send the email
   //     NOTE: ANY ERROR should be handled by our invoker
@@ -792,10 +801,10 @@ export function getUserName(ref) {
 //* RETURN: void
 //*-------------------------------------------------
 function broadcastUserAuthChanged(deviceRef,       // the device reference, specifying the clients to broadcast to
-                                                   // ... deviceId|device|socket|socketId (one in the same)
+                                  // ... deviceId|device|socket|socketId (one in the same)
                                   userState,       // the current user state to broadcast
                                   excludeSocket) { // an optional initiating socket to be excluded from this broadcast
-                                                   // ... CONTEXT: the initiating socket has already communicated/handled this change (typically via return semantics)
+  // ... CONTEXT: the initiating socket has already communicated/handled this change (typically via return semantics)
   const device   = getDevice(deviceRef);
   const deviceId = device.deviceId;
   const deviceRm = deviceRoom(deviceId);
@@ -1037,7 +1046,7 @@ function createDevice(deviceId, user, clientAccessIP, userAgent) {
     user,
     // ... following convenience (consolidation here is possible because we guarantee all sockets of a devices is from the SAME browser instance)
     clientAccessIP,
-//  userAgent, ... too cryptic
+    //  userAgent, ... too cryptic
     os,
     browser,
   };
@@ -1420,24 +1429,33 @@ export async function preAuthenticate(socket) {
     if (e.message === 'STOLEN IDENTITY DETECTED') {
       userMsg = 'Our pre-authentication process has detected an identity theft of this account. ' +
                 'If you are the real user of this account, an email has been sent to you, with instructions on how to rectify this issue. ' +
-                'Hackers are NOT WELCOME in visualize-it.  We have recorded this event and are watching your activity closely!';
+                'Hackers are NOT WELCOME in vzual.  We have recorded this event and are watching your activity closely!';
 
       // send email to user with instructions on how to rectify this issue
       if (issueEmail) {
         const emailContent = {
           to:      issueEmail,
-          bcc:     'kevin@appliedsofttech.com', // monitor all identity theft
-          from:    'kevin@appliedsofttech.com', // AI: use the email address or domain you verified with SendGrid
-          subject: 'visualize-it Malicious Activity Detected',
-          html:    `<p>We have recently detected suspicious activity <i>(a possible identity theft)</i> of the <b>visualize-it</b> account using this email.</p>
-                    <p>You may regain control <i>(ousting the potential hacker)</i> by simply <b>"signing in"</b> and <b>"signing out"</b> of your <b>visualize-it</b> account.</p>
+          bcc:     'support@vzual.org', // monitor all identity theft
+          from:    'noreply@vzual.org', // using the email address or domain you verified with SendGrid
+          subject: 'vzual Malicious Activity Detected',
+          html:    `<p>We have recently detected suspicious activity <i>(a possible identity theft)</i> of the <b>vzual</b> account using this email.</p>
+                    <p>You may regain control <i>(ousting the potential hacker)</i> by simply <b>"signing in"</b> and <b>"signing out"</b> of your <b>vzual</b> account.</p>
                     <ol>
                     <li>By <b>signing-in</b>, you verify that you own this email account
                     <li>By <b>signing-out</b> immediately, this forces the sign-out of the active hacker ... <i>in such a way that they can no longer regain access <b>(in their current state)</b></i>
                     </ol>
                     <p>Once this is accomplished, you will have regained control <i>(i.e. everything has been re-secured)</i>.</p>
                     <p>You may sign-in as you normally would.</p>
-                    <p>Sincerely,<br/>Your visualize-it Support Team</p>`,
+                    <p>Sincerely,<br/>Your vzual Support Team</p>
+                    <p>
+                      --<br/>
+                      ==========================<br/>
+                      Vzual Support (No Reply)<br/>
+                      <a href="https://vzual.org/">https://vzual.org/</a><br/>
+                      ==========================
+                    </p>`
+                    // NOTE: the <a> tag (above) is used to mask the gobbly gook security link added by SendGrid for links
+                    //       AI: I suspect a better way to resolve this is through "Link Branding" SendGrid configuration
         };
         // ... NO NEED to wait (await keyword) for this async function to complete
         sendGridMail.send(emailContent);
