@@ -1,5 +1,8 @@
 <script>
  import user from './auth/user';
+ import {helloVzual} from 'vzual'; // test pulling in vzual npm package
+
+ let vzualOutput = '';
 </script>
 
 <div>
@@ -13,6 +16,13 @@
       {:else}
         <b>WITHOUT</b> the ability to publish your package <i>(you must sign-in for that)</i>
       {/if}  
+    </p>
+
+    <p>
+      Test vzual npm package: 
+      <button on:click={() => vzualOutput = helloVzual()}>Invoke vzual PKG</button>
+      <br/>
+      <mark><i>{vzualOutput}</i></mark>
     </p>
   </center>
 
