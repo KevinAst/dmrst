@@ -45,6 +45,12 @@ export function initializeSockets(httpServer) {
         'http://127.0.0.1:8086',
         'http://127.0.0.1:8096',
         'http://127.0.0.1:8080',
+        // ditto ABOVE with IP address <<< for DEV ACCESS on external devices using my LAN's IP address to my DEV server
+        'http://192.168.1.10:8085',
+        'http://192.168.1.10:8095',
+        'http://192.168.1.10:8086',
+        'http://192.168.1.10:8096',
+        'http://192.168.1.10:8080',
       ],
   //? methods: ['GET', 'POST'], TODO: review more options
   //? allowedHeaders: ['my-custom-header'],
