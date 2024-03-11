@@ -541,7 +541,7 @@ async function sendEmailVerificationCode(socket) {
   const emailContent = {
     to:      socket.data.verification.email,
     bcc:     'support@vzual.org', // AI: IMPORTANT: very temporary for now (monitor all sign-in activity IN the early days)
-    from:    'noreply@vzual.org', // AI: use the email address or domain you verified with SendGrid
+    from:    'noreply@vzual.org', // NOTE: the email address here must have either been "individually verified" or it's "domain verified"
     subject: 'Verification Code from vzual',
     html:    `<p>You have requested to access a vzual account through this email address</p>
               <p>To complete this process, enter this code in your vzual verification screen: <b><mark>${socket.data.verification.code}</mark></b>
