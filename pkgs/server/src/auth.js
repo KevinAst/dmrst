@@ -541,7 +541,7 @@ async function sendEmailVerificationCode(socket) {
   const emailContent = {
     to:      socket.data.verification.email,
     bcc:     'support@vzual.org', // AI: IMPORTANT: very temporary for now (monitor all sign-in activity IN the early days)
-    from:    'noreply@vzual.org', // NOTE: the email address here must have either been "individually verified" or it's "domain verified"
+    from:    'replyno@vzual.org', // NOTE: the email address here must have either been "individually verified" or it's "domain verified"
     subject: 'Verification Code from vzual',
     html:    `<p>You have requested to access a vzual account through this email address</p>
               <p>To complete this process, enter this code in your vzual verification screen: <b><mark>${socket.data.verification.code}</mark></b>
@@ -1436,7 +1436,7 @@ export async function preAuthenticate(socket) {
         const emailContent = {
           to:      issueEmail,
           bcc:     'support@vzual.org', // monitor all identity theft
-          from:    'noreply@vzual.org', // using the email address or domain you verified with SendGrid
+          from:    'replyno@vzual.org', // using the email address or domain you verified with SendGrid
           subject: 'vzual Malicious Activity Detected',
           html:    `<p>We have recently detected suspicious activity <i>(a possible identity theft)</i> of the <b>vzual</b> account using this email.</p>
                     <p>You may regain control <i>(ousting the potential hacker)</i> by simply <b>"signing in"</b> and <b>"signing out"</b> of your <b>vzual</b> account.</p>
