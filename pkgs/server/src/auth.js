@@ -45,15 +45,15 @@
  */
 
 import sendGridMail          from '@sendgrid/mail';
-import {socketAckFn_timeout} from './core/util/socketIOUtils';
-import {isDev}               from './util/env';
-import {prettyPrint}         from './util/prettyPrint';
-import {msgClient}           from './chat';
+import {socketAckFn_timeout} from './core/util/socketIOUtils.js';
+import {isDev}               from './util/env.js';
+import {prettyPrint}         from './util/prettyPrint.js';
+import {msgClient}           from './chat.js';
 import crypto                from 'crypto'; //... the node.js built-in crypto library
-import {encrypt, decrypt}    from './util/encryption';
+import {encrypt, decrypt}    from './util/encryption.js';
 import storage               from 'node-persist'; // AI: temp lib used to persist PriorAuthDB TILL we hook into DB
 import UAParser              from 'ua-parser-js';
-import logger from './core/util/logger';
+import logger from './core/util/logger/logger.js';
 const  logPrefix = 'vit:server:auth';
 const  log = logger(`${logPrefix}`);
 

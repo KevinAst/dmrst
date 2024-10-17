@@ -1,4 +1,4 @@
-import {inBrowser} from '../runningIn';
+import {inBrowser} from '../runningIn.js';
 import debug from 'debug'; // keep this private for proper encapsolation :-)
 
 // our cache of logs

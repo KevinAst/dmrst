@@ -2,7 +2,7 @@
 //*** filterLogsIOServer.js ..... WebSocket binding supporting filtering of logs (server-side)
 //***
 
-import logger from './logger';
+import logger from './logger.js';
 const  log = logger('vit:core:logger:filterLogsIOServer');
 
 // register our socket.io handlers

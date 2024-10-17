@@ -1,4 +1,4 @@
-import SmartModel from './SmartModel';
+import SmartModel from './SmartModel.js';
 
 /**
  * A SIMPLE TEST of domain objects gleaned from a central core package!

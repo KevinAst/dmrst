@@ -20,10 +20,10 @@
 
 import {createCipheriv, randomBytes, createDecipheriv} from 'crypto'; //... the node.js built-in crypto library
 
-import check       from '../core/util/check';
-import {isString}  from '../core/util/typeCheck';
+import check       from '../core/util/check.js';
+import {isString}  from '../core/util/typeCheck.js';
 
-// import logger from '../core/util/logger';   // NOT USED ... to sensitive to log
+// import logger from '../core/util/logger/logger.js';   // NOT USED ... to sensitive to log
 // const  log    = logger('vit:server:util/encryption');
 
 // various encoding directives

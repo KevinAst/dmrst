@@ -17,15 +17,14 @@
   "type": "module",
   "enginesREM": "engines entry used by heroku, and matches this dev env",
   "engines": {
-    "node": "16.x"
+    "node": "20.x"
   },
   "scripts": {
     "a1:REM": "PLEASE NOTE: for a complete desc of these scripts, see: TOOLING.md#npm-scripts",
-    "a2:REM": "PLEASE NOTE: the --experimental-specifier-resolution=node flag supports the omission of .js and recognition of index.js etc.",
     "start:REM": "the start script is used by heroku to run our app",
-    "start": "node --experimental-specifier-resolution=node src/main.js",
-    "testESModulesSymLinks": "nodemon --experimental-specifier-resolution=node src/testESModulesSymLinks.js",
-    "app:devServe": "nodemon --experimental-specifier-resolution=node src/main.js"
+    "start": "node src/main.js",
+    "testESModulesSymLinks": "node --watch src/testESModulesSymLinks.js",
+    "app:devServe": "node --watch src/main.js"
   },
   "dependencies": {
     "@sendgrid/mail": "^7.7.0",
@@ -35,8 +34,5 @@
     "node-persist": "^3.1.0",
     "socket.io": "^4.4.1",
     "ua-parser-js": "^1.0.32"
-  },
-  "devDependencies": {
-    "nodemon": "^2.0.15"
   }
 }

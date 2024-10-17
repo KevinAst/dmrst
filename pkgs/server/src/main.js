@@ -2,14 +2,14 @@
 //*** main.js ... main entry point to our web server
 //***
 
-import './core/util/ErrorExtensionPolyfill'; // value-added Error extensions, providing ability to handle ALL errors more generically
-import './util/dotenvConfig';                // configure dotenv EARLY in our startup process
+import './core/util/ErrorExtensionPolyfill.js'; // value-added Error extensions, providing ability to handle ALL errors more generically
+import './util/dotenvConfig.js';                // configure dotenv EARLY in our startup process
 
 import http                from 'http';
 import express             from 'express';
 import {initializeSockets} from './sockets.js'
 
-import logger from './core/util/logger';
+import logger from './core/util/logger/logger.js';
 const  log = logger('vit:server:main');
 
 // define our express app

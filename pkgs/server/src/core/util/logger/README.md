@@ -29,7 +29,7 @@ using the supplied `namespace`.
 
 EX:
 ```js
-import logger from './core/util/logger';
+import logger from './core/util/logger/logger.js';
 const  log = logger('vit:client:Admin');
 
 ...

@@ -4,13 +4,13 @@
 
 import {Server as SocketIO}             from 'socket.io';
 import {preAuthenticate,
-        clearAuthenticate}              from './auth';
-import registerAuthHandlers             from './auth';
-import registerLogFilterSocketHandlers  from './core/util/logger/filterLogsIOServer';
-import registerChatHandlers             from './chat';
-import registerSystemHandlers           from './systemIO';
+        clearAuthenticate}              from './auth.js';
+import registerAuthHandlers             from './auth.js';
+import registerLogFilterSocketHandlers  from './core/util/logger/filterLogsIOServer.js';
+import registerChatHandlers             from './chat.js';
+import registerSystemHandlers           from './systemIO.js';
 
-import logger from './core/util/logger';
+import logger from './core/util/logger/logger.js';
 const  log = logger('vit:server:sockets');
 
 // configure websocket initiation through our httpServer (socket.io)

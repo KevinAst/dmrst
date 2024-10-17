@@ -3,13 +3,13 @@
 //***                 NOTE: This server implementation maintains a server-side state of ALL systems in-use.
 //***
 
-import {getUserName}         from './auth';
+import {getUserName}         from './auth.js';
 import {socketAckFn,
-        socketAckFn_timeout} from './core/util/socketIOUtils';
-import pause                 from './core/util/pause';
-import {msgClient}           from './chat';
+        socketAckFn_timeout} from './core/util/socketIOUtils.js';
+import pause                 from './core/util/pause.js';
+import {msgClient}           from './chat.js';
 
-import logger from './core/util/logger';
+import logger from './core/util/logger/logger.js';
 const  log = logger('vit:server:systemIO'); 
 
 const  roomFromSysId = (sysId) => `sys-${sysId}`;
@@ -284,7 +284,7 @@ export default function registerSystemHandlers(socket) {
     //       background process to "play nicely", giving up control to
     //       other service requests -and/or- other background processes
     while (system.isRunning) {
-      log(`system '${sysId}' tick processor`);
+      log(`system '${sysId}'tick processor`);
 
       // our primary tick processing loop
       // ... we need to communicate to each participant separately

@@ -4,10 +4,10 @@
 //***                   ... all chat state is maintained in the client (for each party side :-)
 //***
 
-import {getUserName} from './auth';
-import {isString}    from './core/util/typeCheck';
+import {getUserName} from './auth.js';
+import {isString}    from './core/util/typeCheck.js';
 
-import logger from './core/util/logger';
+import logger from './core/util/logger/logger.js';
 const  log = logger('vit:server:chat'); 
 
 // socketId waiting for connection to other party

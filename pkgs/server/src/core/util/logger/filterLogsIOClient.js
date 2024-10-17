@@ -2,7 +2,7 @@
 //*** filterLogsIOClient.js ..... WebSocket binding supporting filtering of logs (client-side)
 //***
 
-import logger from './logger';
+import logger from './logger.js';
 const  log = logger('vit:core:logger:filterLogsIOClient');
 
 let socket;  // our active socket (to be used in this module)

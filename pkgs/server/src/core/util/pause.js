@@ -1,4 +1,4 @@
-import logger from './logger';
+import logger from './logger/logger.js';
 const  log = logger('vit:core:pause');
 
 /**

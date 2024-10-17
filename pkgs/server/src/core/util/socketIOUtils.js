@@ -2,7 +2,7 @@
 //*** Reusable socket.io utilities
 //***
 
-import logger from './logger';
+import logger from './logger/logger.js';
 const  log = logger('vit:core:socketIOUtils'); 
 
 /**
