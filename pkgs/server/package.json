@@ -17,7 +17,7 @@
   "type": "module",
   "enginesREM": "engines entry used by heroku, and matches this dev env",
   "engines": {
-    "node": "20.x"
+    "node": "22.x"
   },
   "scripts": {
     "a1:REM": "PLEASE NOTE: for a complete desc of these scripts, see: TOOLING.md#npm-scripts",
