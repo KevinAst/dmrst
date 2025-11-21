@@ -44,7 +44,7 @@
  *   + getUserName(deviceId|device|socket|socketId): string
  */
 
-import sendGridMail          from '@sendgrid/mail';
+import {sendEmail}           from './util/mailer.js';
 import {socketAckFn_timeout} from './core/util/socketIOUtils.js';
 import {isDev}               from './util/env.js';
 import {prettyPrint}         from './util/prettyPrint.js';
@@ -64,9 +64,6 @@ await storage.init({
 
 // the socket.io server in control
 let io = null;
-
-// register our SendGrid API key to the service object
-sendGridMail.setApiKey(process.env.EMAIL_API_KEY);
 
 
 //*-----------------------------------------------------------------------------
@@ -541,7 +538,6 @@ async function sendEmailVerificationCode(socket) {
   const emailContent = {
     to:      socket.data.verification.email,
     bcc:     'support@vzual.org', // AI: IMPORTANT: very temporary for now (monitor all sign-in activity IN the early days)
-    from:    'replyno@vzual.org', // NOTE: the email address here must have either been "individually verified" or it's "domain verified"
     subject: 'Verification Code from vzual',
     html:    `<p>You have requested to access a vzual account through this email address</p>
               <p>To complete this process, enter this code in your vzual verification screen: <b><mark>${socket.data.verification.code}</mark></b>
@@ -555,12 +551,10 @@ async function sendEmailVerificationCode(socket) {
                 <a href="https://vzual.org/">https://vzual.org/</a><br/>
                 ==========================
               </p>`
-              // NOTE: the <a> tag (above) is used to mask the gobbly gook security link added by SendGrid for links
-              //       AI: I suspect a better way to resolve this is through "Link Branding" SendGrid configuration
   };
   // ... send the email
   //     NOTE: ANY ERROR should be handled by our invoker
-  await sendGridMail.send(emailContent);
+  await sendEmail(emailContent);
 }
 
 //*---------------------------------------------------------
@@ -1436,7 +1430,6 @@ export async function preAuthenticate(socket) {
         const emailContent = {
           to:      issueEmail,
           bcc:     'support@vzual.org', // monitor all identity theft
-          from:    'replyno@vzual.org', // using the email address or domain you verified with SendGrid
           subject: 'vzual Malicious Activity Detected',
           html:    `<p>We have recently detected suspicious activity <i>(a possible identity theft)</i> of the <b>vzual</b> account using this email.</p>
                     <p>You may regain control <i>(ousting the potential hacker)</i> by simply <b>"signing in"</b> and <b>"signing out"</b> of your <b>vzual</b> account.</p>
@@ -1454,11 +1447,9 @@ export async function preAuthenticate(socket) {
                       <a href="https://vzual.org/">https://vzual.org/</a><br/>
                       ==========================
                     </p>`
-                    // NOTE: the <a> tag (above) is used to mask the gobbly gook security link added by SendGrid for links
-                    //       AI: I suspect a better way to resolve this is through "Link Branding" SendGrid configuration
         };
         // ... NO NEED to wait (await keyword) for this async function to complete
-        sendGridMail.send(emailContent);
+        sendEmail(emailContent);
       }
     }
     else {

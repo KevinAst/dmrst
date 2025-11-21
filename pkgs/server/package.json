@@ -27,11 +27,11 @@
     "app:devServe": "node --watch src/main.js"
   },
   "dependencies": {
-    "@sendgrid/mail": "^7.7.0",
     "debug": "^4.3.3",
     "dotenv": "^16.0.3",
     "express": "^4.17.2",
     "node-persist": "^3.1.0",
+    "nodemailer": "^7.0.10",
     "socket.io": "^4.4.1",
     "ua-parser-js": "^1.0.32"
   }
